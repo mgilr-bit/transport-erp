@@ -4,8 +4,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider   = "prisma-client"
+  output     = "../app/generated/prisma"
+  // Cliente sin motor nativo: Turbopack empaqueta el cliente generado y en
+  // Vercel no se encuentra libquery_engine-*.so.node. Usa el driver de lib/db.ts.
+  engineType = "client"
 }
 
 datasource db {

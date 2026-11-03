@@ -5,11 +5,12 @@
  */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma, type GiroNegocio, type CategoriaGasto } from "../app/generated/prisma/client";
 import { calcularAlquiler, calcularAvance, calcularTarifaViaje, evaluarLecturaGPS } from "../lib/reglas";
 import { REGLAS } from "../lib/constants";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 // ─── Utilidades ────────────────────────────────────────────────────────────
 
