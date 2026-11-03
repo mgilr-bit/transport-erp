@@ -1,0 +1,566 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  TransPort ERP — Modelo de datos
+//  Sistema integrado para los giros de negocio de TransPort (Guatemala)
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enumeraciones ─────────────────────────────────────────────────────────
+
+enum GiroNegocio {
+  EXTRACCION        // Plantas de extracción minera
+  PROCESO           // Plantas de proceso de materia prima
+  MAQUINARIA        // Venta y alquiler de maquinaria
+  TRANSPORTE_MP     // Transporte de materia prima
+  TRANSPORTE_PROD   // Transporte de productos
+  CONSTRUCCION      // Servicios de construcción
+  CORPORATIVO       // Sede central (Edificio Sixtino, Z10)
+}
+
+enum Rol {
+  ADMIN        // Administración general (sede central)
+  GERENTE      // Gerente de un giro de negocio
+  CONTADOR     // Contabilidad central
+  OPERADOR     // Personal administrativo de sede
+}
+
+enum TipoSede {
+  OFICINA_CENTRAL
+  MINA
+  PLANTA_PROCESO
+  SUCURSAL_MAQUINARIA
+  CENTRO_TRANSPORTE
+  OFICINA_CONSTRUCCION
+}
+
+enum EstadoMaquina {
+  DISPONIBLE
+  ALQUILADA
+  EN_PROYECTO
+  MANTENIMIENTO
+  VENDIDA
+}
+
+enum EstadoContrato {
+  ACTIVO
+  FINALIZADO
+  CANCELADO
+}
+
+enum EstadoCamion {
+  DISPONIBLE
+  EN_RUTA
+  MANTENIMIENTO
+  INACTIVO
+}
+
+enum TipoViaje {
+  MATERIA_PRIMA
+  PRODUCTO
+}
+
+enum ModalidadViaje {
+  NACIONAL
+  INTER_PUERTOS
+  INTER_FRONTERAS
+  PUERTO_A_BODEGA
+  BODEGA_A_PUERTO
+}
+
+enum EstadoViaje {
+  PROGRAMADO
+  EN_CURSO
+  ENTREGADO
+  CANCELADO
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  APROBADA
+  EN_TRANSITO
+  RECIBIDA
+  RECHAZADA
+}
+
+enum EstadoOrdenProduccion {
+  PLANIFICADA
+  EN_PROCESO
+  COMPLETADA
+  CANCELADA
+}
+
+enum TipoObra {
+  PUENTE
+  CARRETERA
+  EDIFICIO
+  OTRO
+}
+
+enum EstadoProyecto {
+  PLANIFICACION
+  EN_EJECUCION
+  PAUSADO
+  FINALIZADO
+}
+
+enum CategoriaGasto {
+  PLANILLA
+  COMBUSTIBLE
+  MANTENIMIENTO
+  MATERIALES
+  ARRENDAMIENTO
+  SERVICIOS
+  GPS
+  OTROS
+}
+
+enum TipoActivoGPS {
+  CAMION
+  MAQUINA
+}
+
+enum TipoAlerta {
+  EXCESO_VELOCIDAD
+  USO_EXCESIVO
+  SIN_SENAL
+  PRESUPUESTO_80
+  PRESUPUESTO_100
+  INVENTARIO_BAJO
+}
+
+enum SeveridadAlerta {
+  INFO
+  ADVERTENCIA
+  CRITICA
+}
+
+enum TipoCliente {
+  NACIONAL
+  EXTRANJERO
+}
+
+// ─── Organización ──────────────────────────────────────────────────────────
+
+model Sede {
+  id           Int         @id @default(autoincrement())
+  codigo       String      @unique
+  nombre       String
+  tipo         TipoSede
+  giro         GiroNegocio
+  departamento String
+  direccion    String
+  telefono     String?
+  latitud      Float
+  longitud     Float
+  activa       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  usuarios        Usuario[]
+  inventarios     Inventario[]
+  extracciones    RegistroExtraccion[]
+  ordenes         OrdenProduccion[]
+  solicitudesOrigen  SolicitudMateriaPrima[] @relation("SolicitudMina")
+  solicitudesDestino SolicitudMateriaPrima[] @relation("SolicitudPlanta")
+  maquinas        Maquina[]
+  camiones        Camion[]
+  gastos          Gasto[]
+
+  @@index([giro])
+}
+
+model Usuario {
+  id         Int          @id @default(autoincrement())
+  nombre     String
+  email      String       @unique
+  password   String
+  rol        Rol
+  giro       GiroNegocio?
+  sedeId     Int?
+  sede       Sede?        @relation(fields: [sedeId], references: [id])
+  activo     Boolean      @default(true)
+  ultimoAcceso DateTime?
+  createdAt  DateTime     @default(now())
+
+  gastos      Gasto[]
+  bitacora    Bitacora[]
+}
+
+// ─── Catálogos compartidos ─────────────────────────────────────────────────
+
+model Material {
+  id           Int     @id @default(autoincrement())
+  codigo       String  @unique
+  nombre       String
+  unidad       String  @default("TON")
+  esMateriaPrima Boolean @default(true)
+  precioRef    Decimal @db.Decimal(12, 2)
+  stockMinimo  Decimal @default(0) @db.Decimal(12, 2)
+
+  inventarios  Inventario[]
+  extracciones RegistroExtraccion[]
+  solicitudes  SolicitudMateriaPrima[]
+  insumos      InsumoProducto[]
+}
+
+model Inventario {
+  id         Int      @id @default(autoincrement())
+  sedeId     Int
+  sede       Sede     @relation(fields: [sedeId], references: [id])
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id])
+  cantidad   Decimal  @db.Decimal(14, 2)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([sedeId, materialId])
+}
+
+model Cliente {
+  id        Int         @id @default(autoincrement())
+  nombre    String
+  nit       String      @unique
+  tipo      TipoCliente @default(NACIONAL)
+  pais      String      @default("Guatemala")
+  contacto  String?
+  telefono  String?
+  email     String?
+  createdAt DateTime    @default(now())
+
+  contratos ContratoAlquiler[]
+  ventas    VentaMaquina[]
+  viajes    Viaje[]
+  proyectos ProyectoConstruccion[]
+}
+
+model Proveedor {
+  id        Int     @id @default(autoincrement())
+  nombre    String
+  nit       String  @unique
+  contacto  String?
+  telefono  String?
+  materiales String
+
+  solicitudes SolicitudMateriaPrima[]
+}
+
+// ─── Giro 1: Extracción minera ─────────────────────────────────────────────
+
+model RegistroExtraccion {
+  id         Int      @id @default(autoincrement())
+  sedeId     Int
+  sede       Sede     @relation(fields: [sedeId], references: [id])
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id])
+  toneladas  Decimal  @db.Decimal(12, 2)
+  turno      String
+  fecha      DateTime
+  observaciones String?
+  createdAt  DateTime @default(now())
+
+  @@index([sedeId, fecha])
+}
+
+// ─── Giro 2: Plantas de proceso ────────────────────────────────────────────
+
+model Producto {
+  id          Int     @id @default(autoincrement())
+  codigo      String  @unique
+  nombre      String
+  categoria   String
+  unidad      String
+  precio      Decimal @db.Decimal(12, 2)
+
+  insumos  InsumoProducto[]
+  ordenes  OrdenProduccion[]
+}
+
+// Receta: cuánto material se requiere por unidad de producto
+model InsumoProducto {
+  id         Int      @id @default(autoincrement())
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id])
+  cantidadPorUnidad Decimal @db.Decimal(10, 4)
+
+  @@unique([productoId, materialId])
+}
+
+model OrdenProduccion {
+  id          Int                   @id @default(autoincrement())
+  codigo      String                @unique
+  sedeId      Int
+  sede        Sede                  @relation(fields: [sedeId], references: [id])
+  productoId  Int
+  producto    Producto              @relation(fields: [productoId], references: [id])
+  cantidad    Decimal               @db.Decimal(12, 2)
+  estado      EstadoOrdenProduccion @default(PLANIFICADA)
+  fechaInicio DateTime
+  fechaFin    DateTime?
+  createdAt   DateTime              @default(now())
+}
+
+// Flujo entre giros: la planta solicita materia prima a una mina propia
+// o a un proveedor tercero; el traslado se ejecuta como un Viaje.
+model SolicitudMateriaPrima {
+  id           Int             @id @default(autoincrement())
+  codigo       String          @unique
+  plantaId     Int
+  planta       Sede            @relation("SolicitudPlanta", fields: [plantaId], references: [id])
+  minaId       Int?
+  mina         Sede?           @relation("SolicitudMina", fields: [minaId], references: [id])
+  proveedorId  Int?
+  proveedor    Proveedor?      @relation(fields: [proveedorId], references: [id])
+  materialId   Int
+  material     Material        @relation(fields: [materialId], references: [id])
+  toneladas    Decimal         @db.Decimal(12, 2)
+  estado       EstadoSolicitud @default(PENDIENTE)
+  fechaRequerida DateTime
+  notas        String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  viaje        Viaje?
+}
+
+// ─── Giro 3: Venta y alquiler de maquinaria ────────────────────────────────
+
+model Maquina {
+  id           Int           @id @default(autoincrement())
+  codigo       String        @unique
+  tipo         String
+  marca        String
+  modelo       String
+  anio         Int
+  serie        String        @unique
+  estado       EstadoMaquina @default(DISPONIBLE)
+  sedeId       Int
+  sede         Sede          @relation(fields: [sedeId], references: [id])
+  tarifaDiaria Decimal       @db.Decimal(12, 2)
+  precioVenta  Decimal       @db.Decimal(14, 2)
+  horasUso     Int           @default(0)
+  dispositivoId Int?         @unique
+  dispositivo  DispositivoGPS? @relation(fields: [dispositivoId], references: [id])
+  proyectoId   Int?
+  proyecto     ProyectoConstruccion? @relation(fields: [proyectoId], references: [id])
+  createdAt    DateTime      @default(now())
+
+  contratos ContratoAlquiler[]
+  venta     VentaMaquina?
+}
+
+model ContratoAlquiler {
+  id          Int            @id @default(autoincrement())
+  codigo      String         @unique
+  maquinaId   Int
+  maquina     Maquina        @relation(fields: [maquinaId], references: [id])
+  clienteId   Int
+  cliente     Cliente        @relation(fields: [clienteId], references: [id])
+  fechaInicio DateTime
+  fechaFin    DateTime
+  tarifaDiaria Decimal       @db.Decimal(12, 2)
+  total       Decimal        @db.Decimal(14, 2)
+  deposito    Decimal        @default(0) @db.Decimal(12, 2)
+  estado      EstadoContrato @default(ACTIVO)
+  createdAt   DateTime       @default(now())
+}
+
+model VentaMaquina {
+  id        Int      @id @default(autoincrement())
+  codigo    String   @unique
+  maquinaId Int      @unique
+  maquina   Maquina  @relation(fields: [maquinaId], references: [id])
+  clienteId Int
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  precio    Decimal  @db.Decimal(14, 2)
+  fecha     DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── Giros 4 y 5: Transporte ───────────────────────────────────────────────
+
+model Camion {
+  id           Int          @id @default(autoincrement())
+  placa        String       @unique
+  marca        String
+  modelo       String
+  anio         Int
+  capacidadTon Decimal      @db.Decimal(8, 2)
+  tipo         String
+  estado       EstadoCamion @default(DISPONIBLE)
+  giro         GiroNegocio
+  sedeId       Int
+  sede         Sede         @relation(fields: [sedeId], references: [id])
+  kilometraje  Int          @default(0)
+  dispositivoId Int?        @unique
+  dispositivo  DispositivoGPS? @relation(fields: [dispositivoId], references: [id])
+  createdAt    DateTime     @default(now())
+
+  viajes Viaje[]
+}
+
+model Piloto {
+  id        Int     @id @default(autoincrement())
+  nombre    String
+  dpi       String  @unique
+  licencia  String  @unique
+  tipoLicencia String
+  telefono  String?
+  activo    Boolean @default(true)
+
+  viajes Viaje[]
+}
+
+model Viaje {
+  id          Int            @id @default(autoincrement())
+  codigo      String         @unique
+  tipo        TipoViaje
+  modalidad   ModalidadViaje @default(NACIONAL)
+  clienteId   Int?
+  cliente     Cliente?       @relation(fields: [clienteId], references: [id])
+  camionId    Int
+  camion      Camion         @relation(fields: [camionId], references: [id])
+  pilotoId    Int
+  piloto      Piloto         @relation(fields: [pilotoId], references: [id])
+  origen      String
+  destino     String
+  carga       String
+  toneladas   Decimal        @db.Decimal(10, 2)
+  distanciaKm Int
+  tarifa      Decimal        @db.Decimal(12, 2)
+  estado      EstadoViaje    @default(PROGRAMADO)
+  fechaSalida DateTime
+  fechaEntrega DateTime?
+  solicitudId Int?           @unique
+  solicitud   SolicitudMateriaPrima? @relation(fields: [solicitudId], references: [id])
+  createdAt   DateTime       @default(now())
+
+  @@index([estado])
+  @@index([fechaSalida])
+}
+
+// ─── Giro 6: Construcción ──────────────────────────────────────────────────
+
+model ProyectoConstruccion {
+  id          Int            @id @default(autoincrement())
+  codigo      String         @unique
+  nombre      String
+  tipo        TipoObra
+  clienteId   Int
+  cliente     Cliente        @relation(fields: [clienteId], references: [id])
+  ubicacion   String
+  departamento String
+  montoContrato Decimal      @db.Decimal(16, 2)
+  costoEjecutado Decimal     @default(0) @db.Decimal(16, 2)
+  avance      Int            @default(0)
+  estado      EstadoProyecto @default(PLANIFICACION)
+  fechaInicio DateTime
+  fechaFinEstimada DateTime
+  descripcion String?
+  createdAt   DateTime       @default(now())
+
+  maquinas Maquina[]
+  hitos    HitoProyecto[]
+}
+
+model HitoProyecto {
+  id         Int      @id @default(autoincrement())
+  proyectoId Int
+  proyecto   ProyectoConstruccion @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  nombre     String
+  peso       Int
+  completado Boolean  @default(false)
+  fechaMeta  DateTime
+}
+
+// ─── Finanzas: presupuesto y gastos por giro ───────────────────────────────
+
+model Presupuesto {
+  id        Int         @id @default(autoincrement())
+  giro      GiroNegocio
+  anio      Int
+  mes       Int
+  monto     Decimal     @db.Decimal(16, 2)
+  createdAt DateTime    @default(now())
+
+  @@unique([giro, anio, mes])
+}
+
+model Gasto {
+  id          Int            @id @default(autoincrement())
+  giro        GiroNegocio
+  sedeId      Int?
+  sede        Sede?          @relation(fields: [sedeId], references: [id])
+  categoria   CategoriaGasto
+  descripcion String
+  monto       Decimal        @db.Decimal(14, 2)
+  fecha       DateTime
+  documento   String?
+  usuarioId   Int?
+  usuario     Usuario?       @relation(fields: [usuarioId], references: [id])
+  createdAt   DateTime       @default(now())
+
+  @@index([giro, fecha])
+}
+
+// ─── Monitoreo GPS (integración con GPS-Inversiones) ───────────────────────
+
+model DispositivoGPS {
+  id         Int           @id @default(autoincrement())
+  imei       String        @unique
+  tipoActivo TipoActivoGPS
+  activo     Boolean       @default(true)
+  ultimaLectura DateTime?
+
+  camion   Camion?
+  maquina  Maquina?
+  lecturas LecturaGPS[]
+}
+
+model LecturaGPS {
+  id            Int            @id @default(autoincrement())
+  dispositivoId Int
+  dispositivo   DispositivoGPS @relation(fields: [dispositivoId], references: [id], onDelete: Cascade)
+  latitud       Float
+  longitud      Float
+  velocidad     Float
+  motorEncendido Boolean
+  timestamp     DateTime
+
+  @@index([dispositivoId, timestamp])
+}
+
+model Alerta {
+  id         Int             @id @default(autoincrement())
+  tipo       TipoAlerta
+  severidad  SeveridadAlerta
+  giro       GiroNegocio
+  titulo     String
+  mensaje    String
+  referencia String?
+  leida      Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+
+  @@index([leida, createdAt])
+}
+
+// ─── Auditoría ─────────────────────────────────────────────────────────────
+
+model Bitacora {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+  accion    String
+  entidad   String
+  detalle   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
