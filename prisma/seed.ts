@@ -7,8 +7,9 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma, type GiroNegocio, type CategoriaGasto } from "../app/generated/prisma/client";
-import { calcularAlquiler, calcularAvance, calcularTarifaViaje, evaluarLecturaGPS } from "../lib/reglas";
-import { REGLAS } from "../lib/constants";
+import { calcularAlquiler, calcularAvance, calcularPedido, calcularTarifaViaje, evaluarLecturaGPS } from "../lib/reglas";
+import { AUDIENCIA_ALERTAS, REGLAS } from "../lib/constants";
+import { hashLlave, prefijoDe } from "../lib/integraciones/llaves";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
@@ -124,10 +125,17 @@ const APELLIDOS = ["López", "García", "Pérez", "Hernández", "Morales", "Cifu
 async function limpiar() {
   // Orden inverso de dependencias
   await prisma.$transaction([
+    prisma.pushSuscripcion.deleteMany(),
+    prisma.apiKey.deleteMany(),
+    prisma.webhook.deleteMany(),
+    prisma.mensaje.deleteMany(),
+    prisma.reunion.deleteMany(),
     prisma.bitacora.deleteMany(),
     prisma.alerta.deleteMany(),
     prisma.lecturaGPS.deleteMany(),
     prisma.viaje.deleteMany(),
+    prisma.pedidoItem.deleteMany(),
+    prisma.pedido.deleteMany(),
     prisma.solicitudMateriaPrima.deleteMany(),
     prisma.contratoAlquiler.deleteMany(),
     prisma.ventaMaquina.deleteMany(),
@@ -144,6 +152,8 @@ async function limpiar() {
     prisma.inventario.deleteMany(),
     prisma.gasto.deleteMany(),
     prisma.presupuesto.deleteMany(),
+    // Clientes y vendedores se referencian mutuamente: primero se quita la cartera
+    prisma.cliente.updateMany({ data: { vendedorId: null } }),
     prisma.usuario.deleteMany(),
     prisma.material.deleteMany(),
     prisma.cliente.deleteMany(),
@@ -641,7 +651,9 @@ async function main() {
   for (const i of invBajo.filter((x) => Number(x.cantidad) < Number(x.material.stockMinimo)).slice(0, 6)) {
     alertas.push({ tipo: "INVENTARIO_BAJO", severidad: "ADVERTENCIA", giro: i.sede.giro, titulo: `${i.sede.nombre}: inventario bajo de ${i.material.nombre}`, mensaje: `Quedan ${Number(i.cantidad).toFixed(2)} ${i.material.unidad} (mínimo ${Number(i.material.stockMinimo)}).`, referencia: `inventario:${i.sedeId}:${i.materialId}`, createdAt: diasAtras(entero(0, 3), 14) });
   }
-  await prisma.alerta.createMany({ data: alertas });
+  await prisma.alerta.createMany({ data: alertas.map((a) => ({ ...a, rolesDestino: AUDIENCIA_ALERTAS[a.tipo] })) });
+
+  const { usuarios: usuariosComerciales, ...comercial } = await sembrarComercial({ sedes, clientes, hash, nViaje });
 
   await prisma.bitacora.createMany({
     data: [
@@ -650,11 +662,252 @@ async function main() {
   });
 
   const resumen = {
-    sedes: Object.keys(sedes).length, usuarios: usuarios.length, camiones: camiones.length, maquinas: maquinas.length,
+    sedes: Object.keys(sedes).length, usuarios: usuarios.length + usuariosComerciales, camiones: camiones.length, maquinas: maquinas.length,
     viajes: nViaje - 1, solicitudes: nSol - 1, ordenes: nOp - 1, extracciones: extracciones.length, gastos: gastos.length,
-    lecturasGPS: lecturas.length, alertas: alertas.length,
+    lecturasGPS: lecturas.length, alertas: alertas.length, ...comercial,
   };
   console.table(resumen);
+}
+
+// ─── Comercial: vendedores, dirección, portal de clientes, pedidos, reuniones y mensajes ─
+
+/** Llave de API de demostración para Cemex (documentada en el README). */
+const LLAVE_DEMO_CEMEX = "tp_demo_cemex_000000000000000000000";
+
+async function sembrarComercial({
+  sedes,
+  clientes,
+  hash,
+  nViaje,
+}: {
+  sedes: Record<string, { id: number; nombre: string }>;
+  clientes: { id: number; nombre: string }[];
+  hash: (p: string) => string;
+  nViaje: number;
+}) {
+  console.log("🤝 Comercial y portal de clientes");
+  const unDia = 86_400_000;
+  /** Fecha a `dias` de hoy a la `hora` de Guatemala (UTC−6). */
+  const enDias = (dias: number, hora = 10) => {
+    const f = new Date(AHORA.getTime() + dias * unDia);
+    f.setUTCHours(hora + 6, 0, 0, 0);
+    return f;
+  };
+
+  // Personal comercial y dirección
+  const personal = [
+    { nombre: "Lic. Eduardo Paiz", email: "direccion@transport.gt", password: "Direccion2026!", rol: "DIRECCION", giro: null, sede: "CORP-Z10" },
+    { nombre: "Daniela Monterroso", email: "ventas.proceso@transport.gt", password: "Vendedor2026!", rol: "VENDEDOR", giro: "PROCESO", sede: "PLA-ZAC" },
+    { nombre: "Kevin Tobar", email: "ventas.maquinaria@transport.gt", password: "Vendedor2026!", rol: "VENDEDOR", giro: "MAQUINARIA", sede: "MAQ-GUA" },
+    { nombre: "Mynor Ajú", email: "ventas.mp@transport.gt", password: "Vendedor2026!", rol: "VENDEDOR", giro: "TRANSPORTE_MP", sede: "TMP-SAN" },
+    { nombre: "Andrea Solís", email: "ventas.transporte@transport.gt", password: "Vendedor2026!", rol: "VENDEDOR", giro: "TRANSPORTE_PROD", sede: "TPR-QTZ" },
+    { nombre: "Javier Cifuentes", email: "ventas.construccion@transport.gt", password: "Vendedor2026!", rol: "VENDEDOR", giro: "CONSTRUCCION", sede: "CON-GUA" },
+  ] as const;
+  const vendedor: Partial<Record<GiroNegocio, number>> = {};
+  for (const u of personal) {
+    const creado = await prisma.usuario.create({
+      data: { nombre: u.nombre, email: u.email, password: hash(u.password), rol: u.rol, giro: u.giro, sedeId: sedes[u.sede].id, ultimoAcceso: diasAtras(entero(0, 3)) },
+    });
+    if (u.giro) vendedor[u.giro] = creado.id;
+  }
+
+  // Cartera: cada cliente con el vendedor de su giro principal (el orden es el de CLIENTES)
+  const CARTERA: GiroNegocio[] = ["TRANSPORTE_MP", "TRANSPORTE_MP", "TRANSPORTE_MP", "CONSTRUCCION", "CONSTRUCCION", "MAQUINARIA", "PROCESO", "TRANSPORTE_PROD", "TRANSPORTE_PROD", "TRANSPORTE_PROD", "TRANSPORTE_PROD", "TRANSPORTE_PROD"];
+  const DIRECCIONES: Record<number, string> = {
+    0: "Km 46.5 carretera al Atlántico, Sanarate, El Progreso",
+    5: "Bodega de obra, 7.ª avenida 5-10, zona 4, Guatemala",
+    6: "Calzada Roosevelt 22-43, zona 11, Guatemala",
+    10: "Centro de distribución, km 16.5 carretera a El Salvador",
+  };
+  for (const [i, c] of clientes.entries()) {
+    await prisma.cliente.update({ where: { id: c.id }, data: { vendedorId: vendedor[CARTERA[i]], direccion: DIRECCIONES[i] ?? null } });
+  }
+
+  // Usuarios del portal de clientes
+  const PORTAL = [
+    { cliente: 0, nombre: "Lic. Andrea Morales", email: "cemex@clientes.transport.gt" },
+    { cliente: 5, nombre: "Ing. Pedro Ajú", email: "sigma@clientes.transport.gt" },
+    { cliente: 6, nombre: "Sr. Julio Coy", email: "elmartillo@clientes.transport.gt" },
+  ];
+  const usuarioPortal: Record<number, number> = {};
+  for (const u of PORTAL) {
+    const creado = await prisma.usuario.create({
+      data: { nombre: u.nombre, email: u.email, password: hash("Cliente2026!"), rol: "CLIENTE", clienteId: clientes[u.cliente].id, ultimoAcceso: diasAtras(entero(0, 6)) },
+    });
+    usuarioPortal[u.cliente] = creado.id;
+  }
+
+  // Pedidos de clientes y de Construcción a las plantas de proceso
+  const catalogo = await prisma.producto.findMany();
+  const precios = new Map(catalogo.map((p) => [p.id, Number(p.precio)]));
+  const plantas = [sedes["PLA-ZAC"], sedes["PLA-HUE"], sedes["PLA-PET"]];
+  const camionesProd = await prisma.camion.findMany({ where: { giro: "TRANSPORTE_PROD" } });
+  const pilotos = await prisma.piloto.findMany({ where: { activo: true } });
+  const obras = await prisma.proyectoConstruccion.findMany({ where: { estado: "EN_EJECUCION" }, take: 2 });
+  const cantidadPara = (unidad: string) => (unidad === "m²" ? entero(15, 120) * 10 : unidad === "saco" ? entero(4, 40) * 10 : entero(8, 60) * 100);
+  const PLAN: { cliente: number | null; estado: "SOLICITADO" | "CONFIRMADO" | "EN_PREPARACION" | "DESPACHADO" | "ENTREGADO" | "CANCELADO"; dias: number; canal?: "PORTAL" | "API" | "CSV" }[] = [
+    { cliente: 6, estado: "ENTREGADO", dias: 58 }, { cliente: 5, estado: "ENTREGADO", dias: 51 }, { cliente: 10, estado: "ENTREGADO", dias: 44, canal: "API" },
+    { cliente: 6, estado: "ENTREGADO", dias: 37, canal: "CSV" }, { cliente: 5, estado: "CANCELADO", dias: 33 }, { cliente: 6, estado: "ENTREGADO", dias: 26 },
+    { cliente: 10, estado: "ENTREGADO", dias: 19, canal: "API" }, { cliente: 6, estado: "ENTREGADO", dias: 14 }, { cliente: 5, estado: "ENTREGADO", dias: 11 },
+    { cliente: 0, estado: "CANCELADO", dias: 9 }, { cliente: 6, estado: "DESPACHADO", dias: 6 }, { cliente: 10, estado: "DESPACHADO", dias: 5, canal: "API" },
+    { cliente: 5, estado: "EN_PREPARACION", dias: 4 }, { cliente: 6, estado: "EN_PREPARACION", dias: 4, canal: "CSV" }, { cliente: 6, estado: "CONFIRMADO", dias: 3 },
+    { cliente: 5, estado: "CONFIRMADO", dias: 2 }, { cliente: 0, estado: "SOLICITADO", dias: 2 }, { cliente: 6, estado: "SOLICITADO", dias: 1 },
+    { cliente: 10, estado: "SOLICITADO", dias: 0, canal: "API" }, { cliente: null, estado: "EN_PREPARACION", dias: 5 }, { cliente: null, estado: "SOLICITADO", dias: 1 },
+  ];
+  const alertas: Prisma.AlertaCreateManyInput[] = [];
+  let nPed = 1;
+  let viaje = nViaje;
+  for (const plan of PLAN) {
+    const elegidos = [...catalogo].sort(() => rnd() - 0.5).slice(0, entero(1, 3));
+    const { lineas, total } = calcularPedido(elegidos.map((p) => ({ productoId: p.id, cantidad: cantidadPara(p.unidad) })), precios);
+    const cliente = plan.cliente === null ? null : clientes[plan.cliente];
+    const obra = plan.cliente === null ? obras[nPed % obras.length] : null;
+    const creado = new Date(enDias(-plan.dias, entero(8, 16)).getTime() - entero(0, 50) * 60_000);
+    const avanzado = plan.estado !== "SOLICITADO" && plan.estado !== "CANCELADO";
+    const planta = avanzado ? elegir(plantas) : null;
+    const codigoPedido = codigo("PED", nPed++);
+    const vendedorPedido = cliente && CARTERA[plan.cliente!] === "PROCESO" ? vendedor.PROCESO : null;
+    const direccion = obra ? `${obra.ubicacion}, ${obra.departamento}` : (DIRECCIONES[plan.cliente!] ?? "Bodega del cliente, Ciudad de Guatemala");
+    const pedido = await prisma.pedido.create({
+      data: {
+        codigo: codigoPedido,
+        clienteId: cliente?.id ?? null,
+        giroSolicitante: obra ? "CONSTRUCCION" : null,
+        proyectoId: obra?.id ?? null,
+        vendedorId: vendedorPedido,
+        plantaId: planta?.id ?? null,
+        estado: plan.estado,
+        canal: obra ? "INTERNO" : (plan.canal ?? "PORTAL"),
+        total,
+        direccionEntrega: direccion,
+        fechaRequerida: enDias(-plan.dias + entero(5, 12), 12),
+        createdAt: creado,
+        updatedAt: new Date(Math.min(AHORA.getTime(), creado.getTime() + (plan.estado === "SOLICITADO" ? 0 : entero(2, 6) * unDia))),
+        items: { create: lineas.map((l) => ({ ...l, cantidad: dec(l.cantidad), precioUnitario: dec(l.precioUnitario), subtotal: dec(l.subtotal) })) },
+      },
+    });
+
+    // La mitad de los entregados viajó con Transporte de productos
+    if (plan.estado === "ENTREGADO" && nPed % 2 === 0 && camionesProd.length && pilotos.length) {
+      const km = entero(40, 260);
+      const toneladas = Math.round(entre(4, 18) * 10) / 10;
+      const salida = new Date(creado.getTime() + entero(2, 4) * unDia);
+      await prisma.viaje.create({
+        data: {
+          codigo: codigo("VJ", viaje++), tipo: "PRODUCTO", modalidad: "NACIONAL", clienteId: cliente?.id ?? null,
+          camionId: elegir(camionesProd).id, pilotoId: elegir(pilotos).id, origen: planta!.nombre, destino: direccion,
+          carga: elegidos.map((p) => p.nombre).join(", ").slice(0, 120), toneladas: dec(toneladas), distanciaKm: km,
+          tarifa: dec(calcularTarifaViaje(km, toneladas, "NACIONAL")), estado: "ENTREGADO", fechaSalida: salida,
+          fechaEntrega: new Date(salida.getTime() + entero(4, 20) * 3_600_000), pedidoId: pedido.id,
+        },
+      });
+    }
+
+    // Avisos: el pedido nuevo al vendedor y el último cambio al cliente
+    if (plan.estado === "SOLICITADO") {
+      alertas.push({
+        tipo: "PEDIDO", severidad: "INFO", giro: "PROCESO", titulo: `Nuevo pedido ${codigoPedido} de ${cliente?.nombre ?? "Servicios de Construcción"}`,
+        mensaje: `${lineas.length} producto${lineas.length === 1 ? "" : "s"} por Q${total.toLocaleString("en-US")}; entrega en ${direccion}.`,
+        referencia: `pedido:${pedido.id}`, createdAt: creado,
+        ...(vendedorPedido ? { usuarioId: vendedorPedido, rolesDestino: [] } : { rolesDestino: ["VENDEDOR", "GERENTE"] }),
+      });
+    }
+    if (cliente && plan.estado !== "SOLICITADO" && plan.dias <= 14) {
+      alertas.push({
+        tipo: "PEDIDO", severidad: plan.estado === "CANCELADO" ? "ADVERTENCIA" : "INFO", giro: "PROCESO", clienteId: cliente.id,
+        titulo: `Pedido ${codigoPedido}: ${plan.estado.toLowerCase().replace("_", " ")}`,
+        mensaje: plan.estado === "ENTREGADO" ? "Su pedido fue entregado. Gracias por su compra." : plan.estado === "CANCELADO" ? "Su pedido fue cancelado. Su vendedor se comunicará con usted." : "Su pedido avanza en la planta.",
+        referencia: `pedido:${pedido.id}`, createdAt: new Date(creado.getTime() + unDia), leida: plan.dias > 5,
+      });
+    }
+  }
+
+  // Reuniones: clientes y prospectos del sitio web
+  const REUNIONES: { cliente?: number; contacto?: string; empresa?: string; email?: string; giro: GiroNegocio; estado: "SOLICITADA" | "CONFIRMADA" | "REALIZADA" | "CANCELADA"; dias: number; hora: number; modalidad: "PRESENCIAL" | "VIDEOCONFERENCIA"; motivo: string }[] = [
+    { cliente: 0, giro: "TRANSPORTE_MP", estado: "CONFIRMADA", dias: 1, hora: 10, modalidad: "VIDEOCONFERENCIA", motivo: "Renovación del contrato anual de fletes Sanarate – plantas" },
+    { cliente: 5, giro: "MAQUINARIA", estado: "SOLICITADA", dias: 3, hora: 9, modalidad: "PRESENCIAL", motivo: "Alquiler de dos excavadoras para la obra de la zona 4" },
+    { cliente: 6, giro: "PROCESO", estado: "CONFIRMADA", dias: 5, hora: 15, modalidad: "PRESENCIAL", motivo: "Precios por volumen de piso y block para el primer trimestre" },
+    { cliente: 1, giro: "MAQUINARIA", estado: "CONFIRMADA", dias: 2, hora: 11, modalidad: "VIDEOCONFERENCIA", motivo: "Compra de un cargador frontal usado" },
+    { contacto: "Jorge Méndez", empresa: "Ferretería El Sol", email: "jmendez@ferreteriaelsol.example", giro: "PROCESO", estado: "SOLICITADA", dias: 2, hora: 10, modalidad: "VIDEOCONFERENCIA", motivo: "Distribuir porcelanato y adhesivo en Quetzaltenango" },
+    { contacto: "Lucía Hernández", empresa: "Agroindustrias del Pacífico", email: "lhernandez@agropacifico.example", giro: "TRANSPORTE_PROD", estado: "SOLICITADA", dias: 4, hora: 14, modalidad: "VIDEOCONFERENCIA", motivo: "Contenedores de Puerto Quetzal a bodega en Escuintla, 12 por mes" },
+    { contacto: "Arq. Fernando Rivas", empresa: "Desarrollos Altamira", email: "frivas@altamira.example", giro: "CONSTRUCCION", estado: "CONFIRMADA", dias: 7, hora: 9, modalidad: "PRESENCIAL", motivo: "Cotización de un edificio de oficinas de seis niveles" },
+    { contacto: "Ing. Marco Tulio Paz", empresa: "Minera Santa Fe", email: "mtpaz@minerasantafe.example", giro: "EXTRACCION", estado: "SOLICITADA", dias: 6, hora: 11, modalidad: "VIDEOCONFERENCIA", motivo: "Compra de 2,000 t mensuales de piedra caliza" },
+    { cliente: 10, giro: "TRANSPORTE_PROD", estado: "REALIZADA", dias: -6, hora: 10, modalidad: "VIDEOCONFERENCIA", motivo: "Rutas inter fronteras hacia El Salvador y Honduras" },
+    { cliente: 2, giro: "TRANSPORTE_MP", estado: "REALIZADA", dias: -12, hora: 9, modalidad: "PRESENCIAL", motivo: "Ampliación de la flota asignada a la planta" },
+    { cliente: 3, giro: "CONSTRUCCION", estado: "REALIZADA", dias: -20, hora: 10, modalidad: "PRESENCIAL", motivo: "Avance del puente sobre el río Motagua" },
+    { cliente: 8, giro: "TRANSPORTE_PROD", estado: "CANCELADA", dias: -3, hora: 16, modalidad: "VIDEOCONFERENCIA", motivo: "Tarifas de transporte de cemento a San Salvador" },
+  ];
+  for (const [i, r] of REUNIONES.entries()) {
+    const cliente = r.cliente !== undefined ? clientes[r.cliente] : null;
+    const contacto = r.cliente !== undefined ? CLIENTES[r.cliente].contacto : r.contacto!;
+    const codigoReunion = codigo("REU", i + 1);
+    const vendedorId = vendedor[r.giro] ?? null;
+    const reunion = await prisma.reunion.create({
+      data: {
+        codigo: codigoReunion, clienteId: cliente?.id ?? null, contacto, empresa: cliente?.nombre ?? r.empresa, giro: r.giro, vendedorId,
+        email: r.email ?? `${contacto.split(" ").at(-1)!.toLowerCase().normalize("NFD").replace(/[^a-z]/g, "")}@clientes.transport.gt`,
+        fecha: enDias(r.dias, r.hora), modalidad: r.modalidad, motivo: r.motivo, estado: r.estado,
+        enlace: r.modalidad === "VIDEOCONFERENCIA" && r.estado !== "SOLICITADA" ? `https://videollamada.transport.gt/${codigoReunion}` : null,
+        createdAt: enDias(Math.min(r.dias, 0) - entero(2, 6), 9),
+      },
+    });
+    if (r.estado === "SOLICITADA") {
+      alertas.push({
+        tipo: "REUNION", severidad: "INFO", giro: r.giro, titulo: `Reunión solicitada por ${reunion.empresa ?? contacto}`,
+        mensaje: `${r.motivo} · propuesta para el ${reunion.fecha.toLocaleDateString("es-GT")}.`, referencia: `reunion:${reunion.id}`, createdAt: reunion.createdAt,
+        ...(vendedorId ? { usuarioId: vendedorId, rolesDestino: [] } : { rolesDestino: ["GERENTE", "VENDEDOR"] }),
+      });
+    }
+    if (r.estado === "CONFIRMADA" && cliente) {
+      alertas.push({
+        tipo: "REUNION", severidad: "INFO", giro: r.giro, clienteId: cliente.id, titulo: `Reunión ${codigoReunion} confirmada`,
+        mensaje: `${reunion.fecha.toLocaleString("es-GT", { timeZone: "America/Guatemala" })} · ${r.modalidad === "PRESENCIAL" ? "Edificio Sixtino, zona 10" : `Videoconferencia: ${reunion.enlace}`}`,
+        referencia: `reunion:${reunion.id}`, createdAt: new Date(reunion.createdAt.getTime() + unDia),
+      });
+    }
+  }
+
+  // Conversaciones del portal
+  const CONVERSACIONES: { cliente: number; giro: GiroNegocio; mensajes: [boolean, string, number][] }[] = [
+    { cliente: 0, giro: "TRANSPORTE_MP", mensajes: [
+      [false, "Buenos días, Lic. Morales. Le comparto por aquí la propuesta de renovación de fletes para 2027.", 72],
+      [true, "Gracias, Mynor. La revisamos con compras y la comentamos en la reunión de mañana.", 50],
+    ] },
+    { cliente: 5, giro: "MAQUINARIA", mensajes: [
+      [true, "Buenas tardes. ¿Tienen disponible una motoniveladora para la próxima semana en la zona 4?", 20],
+    ] },
+    { cliente: 6, giro: "PROCESO", mensajes: [
+      [true, "Hola Daniela, ¿podemos agregar 500 m² de piso 33×33 al pedido que está en preparación?", 30],
+      [false, "Claro, Sr. Coy. Lo dejamos como pedido aparte para no atrasar el despacho de hoy.", 28],
+      [true, "Perfecto. ¿Me confirma la fecha de entrega del pedido nuevo?", 4],
+    ] },
+  ];
+  let nMensajes = 0;
+  for (const conv of CONVERSACIONES) {
+    const cliente = clientes[conv.cliente];
+    for (const [deCliente, texto, horas] of conv.mensajes) {
+      await prisma.mensaje.create({
+        data: {
+          clienteId: cliente.id, autorId: deCliente ? usuarioPortal[conv.cliente] : vendedor[conv.giro]!, texto, deCliente,
+          leido: horas > 24, createdAt: new Date(AHORA.getTime() - horas * 3_600_000),
+        },
+      });
+      nMensajes++;
+    }
+    const ultimo = conv.mensajes.at(-1)!;
+    if (ultimo[0] && ultimo[2] <= 24) {
+      alertas.push({
+        tipo: "MENSAJE", severidad: "INFO", giro: conv.giro, usuarioId: vendedor[conv.giro], rolesDestino: [],
+        titulo: `Mensaje de ${cliente.nombre}`, mensaje: ultimo[1], referencia: `mensaje:${cliente.id}`, createdAt: new Date(AHORA.getTime() - ultimo[2] * 3_600_000),
+      });
+    }
+  }
+  await prisma.alerta.createMany({ data: alertas });
+
+  // Integración de demostración: llave de API de Cemex
+  await prisma.apiKey.create({ data: { nombre: "ERP de compras de Cemex (demostración)", prefijo: prefijoDe(LLAVE_DEMO_CEMEX), hash: hashLlave(LLAVE_DEMO_CEMEX), clienteId: clientes[0].id } });
+
+  return { usuarios: personal.length + PORTAL.length, pedidos: nPed - 1, reuniones: REUNIONES.length, mensajes: nMensajes, llaveApiDemo: LLAVE_DEMO_CEMEX };
 }
 
 function descripcionGasto(cat: CategoriaGasto) {
