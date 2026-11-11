@@ -10,6 +10,7 @@ import { PrismaClient, Prisma, type GiroNegocio, type CategoriaGasto } from "../
 import { calcularAlquiler, calcularAvance, calcularPedido, calcularTarifaViaje, evaluarLecturaGPS } from "../lib/reglas";
 import { AUDIENCIA_ALERTAS, REGLAS } from "../lib/constants";
 import { hashLlave, prefijoDe } from "../lib/integraciones/llaves";
+import { fechaGT } from "../lib/utils";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
@@ -687,12 +688,7 @@ async function sembrarComercial({
 }) {
   console.log("🤝 Comercial y portal de clientes");
   const unDia = 86_400_000;
-  /** Fecha a `dias` de hoy a la `hora` de Guatemala (UTC−6). */
-  const enDias = (dias: number, hora = 10) => {
-    const f = new Date(AHORA.getTime() + dias * unDia);
-    f.setUTCHours(hora + 6, 0, 0, 0);
-    return f;
-  };
+  const enDias = (dias: number, hora = 10) => fechaGT(dias, hora, AHORA);
 
   // Personal comercial y dirección
   const personal = [

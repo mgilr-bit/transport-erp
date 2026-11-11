@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireCliente } from "@/lib/auth";
 import { GIROS, SEDE_CENTRAL } from "@/lib/constants";
 import { PAGINAS_GIRO } from "@/lib/sitio";
-import { entradaFechaHoraGT, formatFecha } from "@/lib/utils";
+import { entradaFechaHoraGT, fechaGT, formatFecha } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyRow, Table, Td, Th, Tr } from "@/components/ui/table";
@@ -15,9 +15,6 @@ export const metadata: Metadata = { title: "Reuniones" };
 export default async function ReunionesPortalPage() {
   const { clienteId } = await requireCliente();
   const reuniones = await prisma.reunion.findMany({ where: { clienteId }, include: { vendedor: { select: { nombre: true } } }, orderBy: { fecha: "desc" }, take: 50 });
-  const ahora = new Date();
-  const manana = new Date(ahora.getTime() + 86_400_000);
-  manana.setUTCHours(16, 0, 0, 0);
 
   return (
     <>
@@ -50,7 +47,7 @@ export default async function ReunionesPortalPage() {
           <CardBody>
             <SolicitarReunion
               giros={PAGINAS_GIRO.map((p) => ({ valor: p.giro, texto: p.titulo }))}
-              fechas={{ sugerida: entradaFechaHoraGT(manana), minima: entradaFechaHoraGT(ahora) }}
+              fechas={{ sugerida: entradaFechaHoraGT(fechaGT(1, 10)), minima: entradaFechaHoraGT(new Date()) }}
             />
           </CardBody>
         </Card>

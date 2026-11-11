@@ -38,7 +38,7 @@ export default async function PortalPage() {
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Hola, {session.nombre.split(" ")[0]}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Hola, {session.nombre.replace(/^(Ing|Lic|Lcda|Licda|Arq|Sr|Sra)\.\s*/, "").split(" ")[0]}</h1>
         <p className="mt-1 text-sm text-slate-500">Los negocios de {cliente.nombre} con las empresas de TransPort.</p>
       </div>
 

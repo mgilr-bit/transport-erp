@@ -3,7 +3,7 @@ import { Building2, CalendarClock, Video } from "lucide-react";
 import { getUsuarioActual } from "@/lib/auth";
 import { GIROS_OPERATIVOS, SEDE_CENTRAL } from "@/lib/constants";
 import { PAGINAS_GIRO } from "@/lib/sitio";
-import { entradaFechaHoraGT } from "@/lib/utils";
+import { entradaFechaHoraGT, fechaGT } from "@/lib/utils";
 import { FormularioContacto } from "./formulario";
 
 export const metadata: Metadata = {
@@ -16,10 +16,7 @@ export default async function ContactoPage({ searchParams }: PageProps<"/contact
   const session = await getUsuarioActual();
   const giros = PAGINAS_GIRO.map((p) => ({ valor: p.giro, texto: p.titulo }));
   const giroInicial = typeof giro === "string" && (GIROS_OPERATIVOS as string[]).includes(giro) ? giro : undefined;
-  const ahora = new Date();
-  const manana = new Date(ahora.getTime() + 86_400_000);
-  manana.setUTCHours(16, 0, 0, 0); // 10:00 en Guatemala
-  const fechas = { sugerida: entradaFechaHoraGT(manana), minima: entradaFechaHoraGT(ahora) };
+  const fechas = { sugerida: entradaFechaHoraGT(fechaGT(1, 10)), minima: entradaFechaHoraGT(new Date()) };
 
   return (
     <div className="mx-auto grid max-w-6xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-5">

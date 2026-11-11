@@ -54,15 +54,18 @@ export const NAVEGACION: { seccion: string; items: ItemNav[] }[] = [
   },
 ];
 
+/** Menú visible para el usuario. Solo devuelve datos serializables: se envía al menú lateral (componente cliente). */
 export function navegacionPara(session: SessionPayload) {
   if (!esInterno(session)) return [];
   return NAVEGACION.map((s) => ({
-    ...s,
-    items: s.items.filter((i) => {
-      if (i.soloAdmin) return session.rol === "ADMIN";
-      if (i.regla) return i.regla(session);
-      if (!i.giros || esCorporativo(session)) return true;
-      return session.giro ? i.giros.includes(session.giro) : false;
-    }),
+    seccion: s.seccion,
+    items: s.items
+      .filter((i) => {
+        if (i.soloAdmin) return session.rol === "ADMIN";
+        if (i.regla) return i.regla(session);
+        if (!i.giros || esCorporativo(session)) return true;
+        return session.giro ? i.giros.includes(session.giro) : false;
+      })
+      .map(({ href, label, icono }) => ({ href, label, icono })),
   })).filter((s) => s.items.length > 0);
 }

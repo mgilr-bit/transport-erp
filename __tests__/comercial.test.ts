@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularPedido, claveDia, diasHasta, elegirVendedor, plazoTexto, transicionPedido } from "@/lib/reglas";
-import { entradaFechaHoraGT, fechaHoraGT } from "@/lib/utils";
+import { entradaFechaHoraGT, fechaGT, fechaHoraGT } from "@/lib/utils";
 
 describe("cálculo de pedidos", () => {
   const precios = new Map([
@@ -110,5 +110,18 @@ describe("texto de plazos en recordatorios", () => {
     expect(plazoTexto(0)).toBe("vence hoy");
     expect(plazoTexto(1)).toBe("vence mañana");
     expect(plazoTexto(3)).toBe("vence en 3 días");
+  });
+});
+
+describe("fecha a N días a una hora de Guatemala", () => {
+  it("usa el día de Guatemala aunque en UTC ya sea el día siguiente", () => {
+    const nocheGT = new Date("2026-11-11T03:05:00Z"); // 10 de noviembre, 21:05 en Guatemala
+    expect(fechaGT(1, 10, nocheGT).toISOString()).toBe("2026-11-11T16:00:00.000Z");
+    expect(fechaGT(0, 8, nocheGT).toISOString()).toBe("2026-11-10T14:00:00.000Z");
+  });
+
+  it("funciona igual durante el día", () => {
+    expect(fechaGT(1, 10, new Date("2026-11-10T15:00:00Z")).toISOString()).toBe("2026-11-11T16:00:00.000Z");
+    expect(fechaGT(-2, 9, new Date("2026-11-10T15:00:00Z")).toISOString()).toBe("2026-11-08T15:00:00.000Z");
   });
 });

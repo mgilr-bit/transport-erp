@@ -79,3 +79,9 @@ export function fechaHoraGT(valor: string) {
 export function entradaFechaHoraGT(fecha: Date) {
   return new Date(fecha.getTime() - 6 * 3_600_000).toISOString().slice(0, 16);
 }
+
+/** Fecha a `dias` de hoy (calendario de Guatemala) a la `hora` de Guatemala. */
+export function fechaGT(dias: number, hora: number, ahora = new Date()) {
+  const local = new Date(ahora.getTime() - 6 * 3_600_000 + dias * 86_400_000);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), hora + 6));
+}

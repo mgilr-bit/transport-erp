@@ -126,6 +126,13 @@ describe("menú según el usuario", () => {
     expect(rutas("OPERADOR", "EXTRACCION")).not.toContain("/reportes");
   });
 
+  it("el menú solo contiene datos serializables (se envía a un componente cliente)", () => {
+    for (const rol of ["ADMIN", "DIRECCION", "VENDEDOR", "GERENTE"] as Rol[]) {
+      const menu = navegacionPara(sesion(rol, rol === "VENDEDOR" || rol === "GERENTE" ? "PROCESO" : null));
+      expect(JSON.parse(JSON.stringify(menu))).toEqual(menu);
+    }
+  });
+
   it("el área comercial no aparece para operadores fuera de Proceso", () => {
     expect(rutas("OPERADOR", "EXTRACCION")).not.toContain("/ventas");
     expect(rutas("OPERADOR", "PROCESO")).toContain("/ventas");
