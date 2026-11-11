@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calcularPedido, claveDia, diasHasta, elegirVendedor, transicionPedido } from "@/lib/reglas";
+import { entradaFechaHoraGT, fechaHoraGT } from "@/lib/utils";
 
 describe("cálculo de pedidos", () => {
   const precios = new Map([
@@ -84,5 +85,20 @@ describe("fechas para recordatorios (hora de Guatemala)", () => {
     expect(diasHasta(new Date("2026-11-12T01:00:00Z"), ahora)).toBe(1);
     expect(diasHasta(new Date("2026-11-13T16:00:00Z"), ahora)).toBe(3);
     expect(diasHasta(new Date("2026-11-08T12:00:00Z"), ahora)).toBe(-2);
+  });
+});
+
+describe("fecha y hora de formularios en hora de Guatemala", () => {
+  it("interpreta datetime-local como hora de Guatemala aunque el servidor esté en UTC", () => {
+    expect(fechaHoraGT("2026-11-12T10:00")?.toISOString()).toBe("2026-11-12T16:00:00.000Z");
+  });
+
+  it("acepta fechas con zona explícita y rechaza textos inválidos", () => {
+    expect(fechaHoraGT("2026-11-12T10:00:00Z")?.toISOString()).toBe("2026-11-12T10:00:00.000Z");
+    expect(fechaHoraGT("mañana")).toBeNull();
+  });
+
+  it("muestra una fecha como valor de datetime-local en hora de Guatemala", () => {
+    expect(entradaFechaHoraGT(new Date("2026-11-12T16:00:00Z"))).toBe("2026-11-12T10:00");
   });
 });

@@ -6,6 +6,7 @@ import { ActionForm, Field, Input, Select, SubmitButton } from "@/components/ui/
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import { crearViaje } from "@/app/actions/transporte";
 import { MODALIDADES } from "@/lib/constants";
+import { entradaFechaHoraGT } from "@/lib/utils";
 
 type Opcion = { id: number; texto: string };
 type Camion = Opcion & { tipo: "MATERIA_PRIMA" | "PRODUCTO"; capacidad: number };
@@ -30,7 +31,7 @@ export function NuevoViaje({
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null);
   const [pedido, setPedido] = useState<Solicitud | null>(null);
   const precarga = solicitud ?? pedido;
-  const hoy = new Date().toISOString().slice(0, 16);
+  const hoy = entradaFechaHoraGT(new Date());
 
   return (
     <Modal trigger={<><Plus className="size-4" /> Programar viaje</>} titulo="Programar viaje" descripcion="La tarifa se calcula según distancia, carga y modalidad." ancho="max-w-2xl">

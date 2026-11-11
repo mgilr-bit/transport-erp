@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ejecutarAccion, erroresDe, validar, zFecha, zId, zIdOpcional, zTexto, zTextoOpcional, type ActionState } from "@/lib/action";
+import { ejecutarAccion, erroresDe, validar, zFechaHora, zId, zIdOpcional, zTexto, zTextoOpcional, type ActionState } from "@/lib/action";
 import { puedeGestionarClientes, puedeGestionarPedidos, puedeGestionarReuniones } from "@/lib/auth-rules";
 import { avanzarPedido } from "@/lib/services/pedidos";
 import { asignarVendedor, cerrarReunion, confirmarReunion, crearCliente, enviarMensaje, reasignarReunion } from "@/lib/services/comercial";
@@ -53,7 +53,7 @@ async function reglaReunion(id: number) {
 
 const ConfirmarReunionSchema = z.object({
   reunionId: zId,
-  fecha: zFecha,
+  fecha: zFechaHora,
   enlace: z.preprocess((v) => (v === "" ? null : v), z.url({ error: "Enlace inválido" }).nullable().optional()),
 });
 

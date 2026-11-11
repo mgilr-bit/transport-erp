@@ -61,3 +61,21 @@ export function diasEntre(inicio: Date, fin: Date) {
 export function codigoCorrelativo(prefijo: string, n: number, anio = new Date().getFullYear()) {
   return `${prefijo}-${anio}-${String(n).padStart(5, "0")}`;
 }
+
+/** Guatemala no tiene horario de verano: siempre UTC−6. */
+const ZONA_GT = "-06:00";
+
+/**
+ * Convierte el valor de un campo datetime-local ("2026-11-12T10:00") en una fecha en hora
+ * de Guatemala. Sin esto, un servidor en UTC lo interpretaría seis horas antes.
+ */
+export function fechaHoraGT(valor: string) {
+  const texto = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(valor) ? `${valor.length === 16 ? `${valor}:00` : valor}${ZONA_GT}` : valor;
+  const fecha = new Date(texto);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+/** Valor para un campo datetime-local en hora de Guatemala. */
+export function entradaFechaHoraGT(fecha: Date) {
+  return new Date(fecha.getTime() - 6 * 3_600_000).toISOString().slice(0, 16);
+}

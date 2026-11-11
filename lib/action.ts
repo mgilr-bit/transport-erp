@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { fechaHoraGT } from "@/lib/utils";
 import { Prisma, type GiroNegocio } from "@/app/generated/prisma/client";
 import { autorizar, autorizarOperacion } from "@/lib/auth";
 import { registrarBitacora } from "@/lib/bitacora";
@@ -48,6 +49,8 @@ export const zId = z.coerce.number().int().positive({ error: "Seleccione una opc
 export const zIdOpcional = z.preprocess((v) => (v === "" || v == null ? null : v), z.coerce.number().int().positive().nullable());
 export const zMonto = z.coerce.number({ error: "Ingrese un número" }).positive({ error: "Debe ser mayor a 0" });
 export const zFecha = z.coerce.date({ error: "Fecha inválida" });
+/** Fecha y hora de un campo datetime-local, en hora de Guatemala. */
+export const zFechaHora = z.preprocess((v) => (typeof v === "string" ? (fechaHoraGT(v) ?? v) : v), z.date({ error: "Fecha y hora inválidas" }));
 export const zTexto = (min = 1) => z.string().trim().min(min, { error: "Campo requerido" });
 export const zTextoOpcional = z.preprocess((v) => (v === "" ? null : v), z.string().trim().nullable().optional());
 

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ejecutarAccion, erroresDe, validar, zFecha, zId, zIdOpcional, zMonto, zTexto, type ActionState } from "@/lib/action";
+import { ejecutarAccion, erroresDe, validar, zFechaHora, zId, zIdOpcional, zMonto, zTexto, type ActionState } from "@/lib/action";
 import { cancelarViaje, entregarViaje, iniciarViaje, programarViaje } from "@/lib/services/flujo";
 import type { GiroNegocio, TipoViaje } from "@/app/generated/prisma/client";
 
@@ -20,7 +20,7 @@ const ViajeSchema = z.object({
   carga: zTexto(3),
   toneladas: zMonto,
   distanciaKm: z.coerce.number().int().positive({ error: "Debe ser mayor a 0" }),
-  fechaSalida: zFecha,
+  fechaSalida: zFechaHora,
   solicitudId: zIdOpcional,
   pedidoId: zIdOpcional,
 });
