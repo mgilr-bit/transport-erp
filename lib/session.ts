@@ -9,6 +9,8 @@ export type SessionPayload = {
   nombre: string;
   rol: Rol;
   giro: GiroNegocio | null;
+  /** Solo para usuarios con rol CLIENTE: el cliente al que pertenecen. */
+  clienteId?: number | null;
   expiresAt: Date;
 };
 

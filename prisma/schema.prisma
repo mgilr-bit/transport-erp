@@ -33,6 +33,9 @@ enum Rol {
   GERENTE      // Gerente de un giro de negocio
   CONTADOR     // Contabilidad central
   OPERADOR     // Personal administrativo de sede
+  VENDEDOR     // Atiende clientes, pedidos y reuniones de su giro
+  CLIENTE      // Usuario de un cliente; solo accede al portal
+  DIRECCION    // Dueños: consulta de todos los giros
 }
 
 enum TipoSede {
@@ -137,6 +140,10 @@ enum TipoAlerta {
   PRESUPUESTO_80
   PRESUPUESTO_100
   INVENTARIO_BAJO
+  PEDIDO
+  REUNION
+  MENSAJE
+  RECORDATORIO
 }
 
 enum SeveridadAlerta {
@@ -148,6 +155,34 @@ enum SeveridadAlerta {
 enum TipoCliente {
   NACIONAL
   EXTRANJERO
+}
+
+enum EstadoPedido {
+  SOLICITADO
+  CONFIRMADO
+  EN_PREPARACION
+  DESPACHADO
+  ENTREGADO
+  CANCELADO
+}
+
+enum CanalPedido {
+  PORTAL
+  API
+  CSV
+  INTERNO   // Pedido de otro giro de negocio
+}
+
+enum EstadoReunion {
+  SOLICITADA
+  CONFIRMADA
+  REALIZADA
+  CANCELADA
+}
+
+enum ModalidadReunion {
+  PRESENCIAL         // Edificio Sixtino, zona 10
+  VIDEOCONFERENCIA
 }
 
 // ─── Organización ──────────────────────────────────────────────────────────
@@ -175,6 +210,7 @@ model Sede {
   maquinas        Maquina[]
   camiones        Camion[]
   gastos          Gasto[]
+  pedidos         Pedido[]
 
   @@index([giro])
 }
@@ -188,12 +224,20 @@ model Usuario {
   giro       GiroNegocio?
   sedeId     Int?
   sede       Sede?        @relation(fields: [sedeId], references: [id])
+  clienteId  Int?
+  cliente    Cliente?     @relation("UsuariosCliente", fields: [clienteId], references: [id])
   activo     Boolean      @default(true)
   ultimoAcceso DateTime?
   createdAt  DateTime     @default(now())
 
   gastos      Gasto[]
   bitacora    Bitacora[]
+  cartera     Cliente[]   @relation("CarteraVendedor")
+  pedidos     Pedido[]
+  reuniones   Reunion[]
+  mensajes    Mensaje[]
+  alertas     Alerta[]
+  suscripciones PushSuscripcion[]
 }
 
 // ─── Catálogos compartidos ─────────────────────────────────────────────────
@@ -234,12 +278,22 @@ model Cliente {
   contacto  String?
   telefono  String?
   email     String?
+  direccion String?
+  vendedorId Int?
+  vendedor  Usuario?    @relation("CarteraVendedor", fields: [vendedorId], references: [id])
   createdAt DateTime    @default(now())
 
   contratos ContratoAlquiler[]
   ventas    VentaMaquina[]
   viajes    Viaje[]
   proyectos ProyectoConstruccion[]
+  usuarios  Usuario[]   @relation("UsuariosCliente")
+  pedidos   Pedido[]
+  reuniones Reunion[]
+  mensajes  Mensaje[]
+  alertas   Alerta[]
+  llaves    ApiKey[]
+  webhooks  Webhook[]
 }
 
 model Proveedor {
@@ -251,6 +305,8 @@ model Proveedor {
   materiales String
 
   solicitudes SolicitudMateriaPrima[]
+  llaves      ApiKey[]
+  webhooks    Webhook[]
 }
 
 // ─── Giro 1: Extracción minera ─────────────────────────────────────────────
@@ -282,6 +338,7 @@ model Producto {
 
   insumos  InsumoProducto[]
   ordenes  OrdenProduccion[]
+  pedidos  PedidoItem[]
 }
 
 // Receta: cuánto material se requiere por unidad de producto
@@ -443,6 +500,8 @@ model Viaje {
   fechaEntrega DateTime?
   solicitudId Int?           @unique
   solicitud   SolicitudMateriaPrima? @relation(fields: [solicitudId], references: [id])
+  pedidoId    Int?           @unique
+  pedido      Pedido?        @relation(fields: [pedidoId], references: [id])
   createdAt   DateTime       @default(now())
 
   @@index([estado])
@@ -471,6 +530,7 @@ model ProyectoConstruccion {
 
   maquinas Maquina[]
   hitos    HitoProyecto[]
+  pedidos  Pedido[]
 }
 
 model HitoProyecto {
@@ -549,9 +609,143 @@ model Alerta {
   mensaje    String
   referencia String?
   leida      Boolean         @default(false)
+  // Destinatarios: roles del giro (vacío = todos), un usuario concreto o un cliente (portal)
+  rolesDestino Rol[]         @default([])
+  usuarioId  Int?
+  usuario    Usuario?        @relation(fields: [usuarioId], references: [id])
+  clienteId  Int?
+  cliente    Cliente?        @relation(fields: [clienteId], references: [id])
   createdAt  DateTime        @default(now())
 
   @@index([leida, createdAt])
+  @@index([usuarioId])
+  @@index([clienteId])
+}
+
+// ─── Comercial: pedidos, reuniones y mensajes con clientes ─────────────────
+
+// Pedido de un cliente o de otro giro (p. ej. Construcción) a las plantas de proceso
+model Pedido {
+  id               Int           @id @default(autoincrement())
+  codigo           String        @unique
+  clienteId        Int?
+  cliente          Cliente?      @relation(fields: [clienteId], references: [id])
+  giroSolicitante  GiroNegocio?
+  proyectoId       Int?
+  proyecto         ProyectoConstruccion? @relation(fields: [proyectoId], references: [id])
+  vendedorId       Int?
+  vendedor         Usuario?      @relation(fields: [vendedorId], references: [id])
+  plantaId         Int?
+  planta           Sede?         @relation(fields: [plantaId], references: [id])
+  estado           EstadoPedido  @default(SOLICITADO)
+  canal            CanalPedido   @default(PORTAL)
+  total            Decimal       @db.Decimal(14, 2)
+  direccionEntrega String
+  fechaRequerida   DateTime?
+  notas            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  items PedidoItem[]
+  viaje Viaje?
+
+  @@index([estado])
+  @@index([clienteId])
+}
+
+model PedidoItem {
+  id             Int      @id @default(autoincrement())
+  pedidoId       Int
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId     Int
+  producto       Producto @relation(fields: [productoId], references: [id])
+  cantidad       Decimal  @db.Decimal(12, 2)
+  precioUnitario Decimal  @db.Decimal(12, 2)
+  subtotal       Decimal  @db.Decimal(14, 2)
+
+  @@unique([pedidoId, productoId])
+}
+
+// Reunión para cerrar tratos; puede venir de un cliente o de un prospecto del sitio web
+model Reunion {
+  id         Int              @id @default(autoincrement())
+  codigo     String           @unique
+  clienteId  Int?
+  cliente    Cliente?         @relation(fields: [clienteId], references: [id])
+  contacto   String
+  empresa    String?
+  email      String
+  telefono   String?
+  giro       GiroNegocio
+  vendedorId Int?
+  vendedor   Usuario?         @relation(fields: [vendedorId], references: [id])
+  fecha      DateTime
+  modalidad  ModalidadReunion @default(VIDEOCONFERENCIA)
+  enlace     String?
+  motivo     String
+  estado     EstadoReunion    @default(SOLICITADA)
+  notas      String?
+  createdAt  DateTime         @default(now())
+
+  @@index([vendedorId, estado])
+  @@index([email, createdAt])
+}
+
+model Mensaje {
+  id        Int      @id @default(autoincrement())
+  clienteId Int
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  autorId   Int
+  autor     Usuario  @relation(fields: [autorId], references: [id])
+  texto     String
+  deCliente Boolean
+  leido     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([clienteId, createdAt])
+}
+
+// ─── Integración con sistemas de terceros ──────────────────────────────────
+
+model ApiKey {
+  id          Int        @id @default(autoincrement())
+  nombre      String
+  prefijo     String     @unique
+  hash        String
+  clienteId   Int?
+  cliente     Cliente?   @relation(fields: [clienteId], references: [id])
+  proveedorId Int?
+  proveedor   Proveedor? @relation(fields: [proveedorId], references: [id])
+  activa      Boolean    @default(true)
+  ultimoUso   DateTime?
+  createdAt   DateTime   @default(now())
+}
+
+model Webhook {
+  id           Int        @id @default(autoincrement())
+  url          String
+  secreto      String
+  eventos      String[]
+  clienteId    Int?
+  cliente      Cliente?   @relation(fields: [clienteId], references: [id])
+  proveedorId  Int?
+  proveedor    Proveedor? @relation(fields: [proveedorId], references: [id])
+  activo       Boolean    @default(true)
+  ultimoEnvio  DateTime?
+  ultimoEstado Int?
+  ultimoError  String?
+  createdAt    DateTime   @default(now())
+}
+
+// Suscripción de un navegador a notificaciones push (PWA)
+model PushSuscripcion {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
 }
 
 // ─── Auditoría ─────────────────────────────────────────────────────────────

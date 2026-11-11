@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { GIROS, GIROS_OPERATIVOS } from "@/lib/constants";
 import { toNumber } from "@/lib/utils";
-import type { GiroNegocio } from "@/app/generated/prisma/client";
+import type { GiroNegocio, Prisma } from "@/app/generated/prisma/client";
 
 export function mesActual(ref = new Date()) {
   return { anio: ref.getFullYear(), mes: ref.getMonth() + 1, desde: new Date(ref.getFullYear(), ref.getMonth(), 1), hasta: new Date(ref.getFullYear(), ref.getMonth() + 1, 1) };
@@ -61,14 +61,15 @@ export async function gastosUltimos12Meses(giros: GiroNegocio[], ref = new Date(
   };
 }
 
-export async function resumenOperativo() {
+/** `alertas` limita el conteo de alertas críticas a las que ve el usuario. */
+export async function resumenOperativo(alertas: Prisma.AlertaWhereInput = {}) {
   const [camiones, maquinas, viajesActivos, solicitudesPendientes, ordenesProceso, alertasCriticas] = await Promise.all([
     prisma.camion.groupBy({ by: ["estado"], _count: true }),
     prisma.maquina.groupBy({ by: ["estado"], _count: true }),
     prisma.viaje.count({ where: { estado: { in: ["EN_CURSO", "PROGRAMADO"] } } }),
     prisma.solicitudMateriaPrima.count({ where: { estado: "PENDIENTE" } }),
     prisma.ordenProduccion.count({ where: { estado: "EN_PROCESO" } }),
-    prisma.alerta.count({ where: { leida: false, severidad: "CRITICA" } }),
+    prisma.alerta.count({ where: { ...alertas, leida: false, severidad: "CRITICA" } }),
   ]);
   const cuenta = <T extends string>(arr: { estado: T; _count: number }[], estado: T) => arr.find((a) => a.estado === estado)?._count ?? 0;
   const totalCamiones = camiones.reduce((s, c) => s + c._count, 0);

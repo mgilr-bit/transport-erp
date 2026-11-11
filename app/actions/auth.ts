@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createSession, deleteSession } from "@/lib/session";
+import { destinoTrasLogin } from "@/lib/rutas";
 import type { ActionState } from "@/lib/action";
 
 const LoginSchema = z.object({
@@ -13,7 +14,7 @@ const LoginSchema = z.object({
 });
 
 export async function login(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const parsed = LoginSchema.safeParse(Object.fromEntries(formData));
+  const parsed = LoginSchema.safeParse({ email: formData.get("email"), password: formData.get("password") });
   if (!parsed.success) return { ok: false, errores: z.flattenError(parsed.error).fieldErrors };
 
   const usuario = await prisma.usuario.findUnique({ where: { email: parsed.data.email } });
@@ -28,13 +29,15 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
     nombre: usuario.nombre,
     rol: usuario.rol,
     giro: usuario.giro,
+    clienteId: usuario.clienteId,
     expiresAt: new Date(),
   });
   await prisma.$transaction([
     prisma.usuario.update({ where: { id: usuario.id }, data: { ultimoAcceso: new Date() } }),
     prisma.bitacora.create({ data: { usuarioId: usuario.id, accion: "INICIO_SESION", entidad: "Usuario", detalle: usuario.email } }),
   ]);
-  redirect("/dashboard");
+  const siguiente = formData.get("next");
+  redirect(destinoTrasLogin(usuario.rol, typeof siguiente === "string" ? siguiente : null));
 }
 
 export async function logout() {

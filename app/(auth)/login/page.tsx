@@ -14,7 +14,7 @@ const giros = [
 ];
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { motivo } = await searchParams;
+  const { motivo, next } = await searchParams;
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <section className="relative hidden overflow-hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -60,7 +60,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               Su cuenta fue desactivada. Comuníquese con el administrador general.
             </p>
           )}
-          <LoginForm />
+          <LoginForm siguiente={typeof next === "string" ? next : undefined} />
           <details className="mt-8 rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600">
             <summary className="cursor-pointer font-medium text-slate-700">Cuentas de demostración</summary>
             <ul className="mt-3 space-y-1.5 font-mono">

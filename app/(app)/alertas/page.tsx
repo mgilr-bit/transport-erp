@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BellRing, OctagonAlert, Radar, ShieldCheck } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { esCorporativo, filtroGiro, requireSession } from "@/lib/auth";
-import { GIROS, GIROS_OPERATIVOS } from "@/lib/constants";
+import { esCorporativo, requireSession } from "@/lib/auth";
+import { enlaceDeReferencia, filtroAlertas } from "@/lib/alertas";
+import { GIROS, GIROS_OPERATIVOS, TIPOS_ALERTA as TIPOS } from "@/lib/constants";
 import type { Alerta, GiroNegocio, Prisma, SeveridadAlerta, TipoAlerta } from "@/app/generated/prisma/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,14 +17,6 @@ import { MarcarLeida, MarcarTodas } from "./acciones";
 
 export const metadata: Metadata = { title: "Centro de alertas" };
 
-const TIPOS: Record<TipoAlerta, string> = {
-  EXCESO_VELOCIDAD: "Exceso de velocidad",
-  USO_EXCESIVO: "Uso continuo prolongado",
-  SIN_SENAL: "Sin señal GPS",
-  PRESUPUESTO_80: "Presupuesto al 80 %",
-  PRESUPUESTO_100: "Presupuesto excedido",
-  INVENTARIO_BAJO: "Inventario bajo",
-};
 const SEVERIDADES: Record<SeveridadAlerta, string> = { CRITICA: "Crítica", ADVERTENCIA: "Advertencia", INFO: "Informativa" };
 
 export default async function AlertasPage({ searchParams }: PageProps<"/alertas">) {
@@ -39,7 +32,7 @@ export default async function AlertasPage({ searchParams }: PageProps<"/alertas"
   const vista = str(sp.vista) === "todas" ? "todas" : "pendientes";
   const pagina = paginaDe(sp.pagina);
 
-  const base: Prisma.AlertaWhereInput = { ...filtroGiro(session), ...(giro ? { giro } : {}) };
+  const base: Prisma.AlertaWhereInput = { ...filtroAlertas(session), ...(giro ? { giro } : {}) };
   const where: Prisma.AlertaWhereInput = { ...base, ...(tipo ? { tipo } : {}), ...(severidad ? { severidad } : {}), ...(vista === "pendientes" ? { leida: false } : {}) };
   const ahora = new Date();
   const hace30 = new Date(ahora.getTime() - 30 * 86_400_000);
@@ -70,12 +63,11 @@ export default async function AlertasPage({ searchParams }: PageProps<"/alertas"
       const imei = (prefijo === "camion" ? camiones : maquinas).find((x) => x.id === Number(id))?.dispositivo?.imei;
       return imei ? { href: `/gps?imei=${imei}`, texto: "Ver recorrido" } : null;
     }
-    if (prefijo === "presupuesto") return { href: "/finanzas", texto: "Ver presupuesto" };
     if (prefijo === "inventario") {
       const sede = sedes.find((s) => s.id === Number(id));
       return sede?.giro === "PROCESO" ? { href: "/proceso?tab=inventario", texto: "Ver inventario" } : { href: "/extraccion", texto: "Ver inventario" };
     }
-    return null;
+    return enlaceDeReferencia(a.referencia);
   };
 
   const datosTipo = porTipo.map((t) => ({ tipo: TIPOS[t.tipo], alertas: t._count })).sort((a, b) => b.alertas - a.alertas);
@@ -84,7 +76,7 @@ export default async function AlertasPage({ searchParams }: PageProps<"/alertas"
     <>
       <PageHeader
         titulo="Centro de alertas"
-        descripcion="Alertas generadas automáticamente por TransPort ERP a partir del GPS, el presupuesto de cada giro y los inventarios."
+        descripcion="Alertas y recordatorios generados por TransPort ERP a partir del GPS, el presupuesto, los inventarios, los pedidos y la agenda comercial. Cada usuario ve las que corresponden a su rol y giro."
         acciones={<MarcarTodas filtro={{ tipo, severidad, giro }} total={pendientesFiltro} />}
       />
 

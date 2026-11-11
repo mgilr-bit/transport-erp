@@ -1,15 +1,19 @@
-import { AlertTriangle, Gauge, Info, OctagonAlert, PackageMinus, SignalZero, Timer, Wallet } from "lucide-react";
-import type { Alerta } from "@/app/generated/prisma/client";
+import { AlertTriangle, BellRing, CalendarClock, Gauge, Info, MessageSquare, OctagonAlert, PackageMinus, ShoppingCart, SignalZero, Timer, Wallet, type LucideIcon } from "lucide-react";
+import type { Alerta, TipoAlerta } from "@/app/generated/prisma/client";
 import { GIROS } from "@/lib/constants";
 import { cn, formatFecha } from "@/lib/utils";
 
-const ICONO_TIPO = {
+const ICONO_TIPO: Record<TipoAlerta, LucideIcon> = {
   EXCESO_VELOCIDAD: Gauge,
   USO_EXCESIVO: Timer,
   SIN_SENAL: SignalZero,
   PRESUPUESTO_80: Wallet,
   PRESUPUESTO_100: Wallet,
   INVENTARIO_BAJO: PackageMinus,
+  PEDIDO: ShoppingCart,
+  REUNION: CalendarClock,
+  MENSAJE: MessageSquare,
+  RECORDATORIO: BellRing,
 };
 
 const SEVERIDAD = {

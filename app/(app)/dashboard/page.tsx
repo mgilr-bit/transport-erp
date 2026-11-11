@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, BellRing, Factory, Receipt, Tractor, Truck, Wallet } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { esCorporativo, filtroGiro, requireSession } from "@/lib/auth";
+import { esCorporativo, requireSession } from "@/lib/auth";
+import { filtroAlertas } from "@/lib/alertas";
 import { GIROS, GIROS_OPERATIVOS } from "@/lib/constants";
 import { ejecucionPresupuestaria } from "@/lib/services/finanzas";
 import { GIROS_TODOS, gastosUltimos12Meses, ingresosDelMes, mesActual, resumenOperativo } from "@/lib/services/dashboard";
@@ -27,8 +28,8 @@ export default async function DashboardPage() {
     ejecucionPresupuestaria(anio, mes, giros),
     gastosUltimos12Meses(giros),
     ingresosDelMes(),
-    resumenOperativo(),
-    prisma.alerta.findMany({ where: { leida: false, ...filtroGiro(session) }, orderBy: [{ severidad: "desc" }, { createdAt: "desc" }], take: 6 }),
+    resumenOperativo(filtroAlertas(session)),
+    prisma.alerta.findMany({ where: { leida: false, ...filtroAlertas(session) }, orderBy: [{ severidad: "desc" }, { createdAt: "desc" }], take: 6 }),
   ]);
 
   const totalPresupuesto = ejecucion.reduce((s, e) => s + e.presupuesto, 0);

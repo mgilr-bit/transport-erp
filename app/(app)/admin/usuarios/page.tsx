@@ -11,7 +11,7 @@ import { AlternarUsuario, NuevoUsuario, RestablecerPassword } from "./formulario
 
 export const metadata: Metadata = { title: "Usuarios" };
 
-const TONO_ROL = { ADMIN: "violeta", CONTADOR: "azul", GERENTE: "verde", OPERADOR: "gris" } as const;
+const TONO_ROL = { ADMIN: "violeta", DIRECCION: "violeta", CONTADOR: "azul", GERENTE: "verde", VENDEDOR: "ambar", OPERADOR: "gris", CLIENTE: "gris" } as const;
 
 export default async function UsuariosPage() {
   const session = await requireAdmin();

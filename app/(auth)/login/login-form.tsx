@@ -3,9 +3,10 @@
 import { ActionForm, Field, Input, SubmitButton } from "@/components/ui/form";
 import { login } from "@/app/actions/auth";
 
-export function LoginForm() {
+export function LoginForm({ siguiente }: { siguiente?: string }) {
   return (
     <ActionForm action={login} className="mt-8" resetOnSuccess={false}>
+      {siguiente && <input type="hidden" name="next" value={siguiente} />}
       <Field label="Correo electrónico" name="email">
         <Input name="email" type="email" autoComplete="email" placeholder="usuario@transport.gt" required />
       </Field>

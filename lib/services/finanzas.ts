@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { crearAlerta } from "@/lib/services/alertas";
 import { GIROS, GIROS_OPERATIVOS } from "@/lib/constants";
 import { evaluarPresupuesto, umbralCruzado } from "@/lib/reglas";
 import { formatQ, toNumber } from "@/lib/utils";
@@ -63,16 +64,14 @@ export async function registrarGasto(
     const monto = toNumber(presupuesto?.monto);
     const umbral = umbralCruzado(monto, antes, antes + data.monto);
     if (umbral) {
-      await tx.alerta.create({
-        data: {
-          tipo: umbral,
-          severidad: umbral === "PRESUPUESTO_100" ? "CRITICA" : "ADVERTENCIA",
-          giro: data.giro,
-          titulo: `${GIROS[data.giro].nombre}: presupuesto ${umbral === "PRESUPUESTO_100" ? "excedido" : "al 80 %"}`,
-          mensaje: `Ejecutado ${formatQ(antes + data.monto)} de ${formatQ(monto)} en ${String(mes).padStart(2, "0")}/${anio}.`,
-          referencia: `presupuesto:${data.giro}:${anio}-${mes}`,
-        },
-      });
+      await crearAlerta({
+        tipo: umbral,
+        severidad: umbral === "PRESUPUESTO_100" ? "CRITICA" : "ADVERTENCIA",
+        giro: data.giro,
+        titulo: `${GIROS[data.giro].nombre}: presupuesto ${umbral === "PRESUPUESTO_100" ? "excedido" : "al 80 %"}`,
+        mensaje: `Ejecutado ${formatQ(antes + data.monto)} de ${formatQ(monto)} en ${String(mes).padStart(2, "0")}/${anio}.`,
+        referencia: `presupuesto:${data.giro}:${anio}-${mes}`,
+      }, tx);
     }
     return gasto;
   });
@@ -99,16 +98,14 @@ export async function definirPresupuestos(anio: number, mes: number, montos: Par
       const tipo = nivel === "EXCEDIDO" ? "PRESUPUESTO_100" : "PRESUPUESTO_80";
       const referencia = `presupuesto:${giro}:${anio}-${mes}`;
       if (await tx.alerta.findFirst({ where: { tipo, referencia } })) continue;
-      await tx.alerta.create({
-        data: {
-          tipo,
-          severidad: tipo === "PRESUPUESTO_100" ? "CRITICA" : "ADVERTENCIA",
-          giro,
-          titulo: `${GIROS[giro].nombre}: presupuesto ${tipo === "PRESUPUESTO_100" ? "excedido" : "al 80 %"}`,
-          mensaje: `Con el nuevo presupuesto de ${formatQ(monto)}, lo ejecutado (${formatQ(ejecutado)}) ya supera el umbral en ${String(mes).padStart(2, "0")}/${anio}.`,
-          referencia,
-        },
-      });
+      await crearAlerta({
+        tipo,
+        severidad: tipo === "PRESUPUESTO_100" ? "CRITICA" : "ADVERTENCIA",
+        giro,
+        titulo: `${GIROS[giro].nombre}: presupuesto ${tipo === "PRESUPUESTO_100" ? "excedido" : "al 80 %"}`,
+        mensaje: `Con el nuevo presupuesto de ${formatQ(monto)}, lo ejecutado (${formatQ(ejecutado)}) ya supera el umbral en ${String(mes).padStart(2, "0")}/${anio}.`,
+        referencia,
+      }, tx);
       alertas++;
     }
     return { giros: entradas.length, alertas };

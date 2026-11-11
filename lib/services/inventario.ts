@@ -1,4 +1,5 @@
 import "server-only";
+import { crearAlerta } from "@/lib/services/alertas";
 import { Prisma } from "@/app/generated/prisma/client";
 import { toNumber } from "@/lib/utils";
 
@@ -17,16 +18,14 @@ export async function ajustarInventario(tx: Prisma.TransactionClient, sedeId: nu
   });
 
   if (delta < 0 && nuevo < toNumber(registro.material.stockMinimo)) {
-    await tx.alerta.create({
-      data: {
-        tipo: "INVENTARIO_BAJO",
-        severidad: "ADVERTENCIA",
-        giro: registro.sede.giro,
-        titulo: `${registro.sede.nombre}: inventario bajo de ${registro.material.nombre}`,
-        mensaje: `Quedan ${nuevo.toFixed(2)} ${registro.material.unidad} (mínimo ${toNumber(registro.material.stockMinimo)}).`,
-        referencia: `inventario:${sedeId}:${materialId}`,
-      },
-    });
+    await crearAlerta({
+      tipo: "INVENTARIO_BAJO",
+      severidad: "ADVERTENCIA",
+      giro: registro.sede.giro,
+      titulo: `${registro.sede.nombre}: inventario bajo de ${registro.material.nombre}`,
+      mensaje: `Quedan ${nuevo.toFixed(2)} ${registro.material.unidad} (mínimo ${toNumber(registro.material.stockMinimo)}).`,
+      referencia: `inventario:${sedeId}:${materialId}`,
+    }, tx);
   }
   return registro;
 }

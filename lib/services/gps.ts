@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { crearAlerta } from "@/lib/services/alertas";
 import { REGLAS } from "@/lib/constants";
 import { distanciaKm, evaluarLecturaGPS, horasCruzadas } from "@/lib/reglas";
 import { obtenerProveedorGPS, type LecturaProveedor } from "@/lib/gps/proveedor";
@@ -54,15 +55,13 @@ export async function detectarSinSenal(ahora = new Date()) {
     const existente = await prisma.alerta.findFirst({ where: { tipo: "SIN_SENAL", referencia: activo.ref, createdAt: { gte: d.ultimaLectura } } });
     if (existente) continue;
     const minutos = Math.round((ahora.getTime() - d.ultimaLectura.getTime()) / 60_000);
-    await prisma.alerta.create({
-      data: {
-        tipo: "SIN_SENAL",
-        severidad: minutos > 24 * 60 ? "CRITICA" : "ADVERTENCIA",
-        giro: activo.giro,
-        titulo: `${activo.nombre}: sin señal GPS`,
-        mensaje: `El dispositivo ${d.imei} no reporta desde hace ${minutos >= 120 ? `${Math.floor(minutos / 60)} h` : `${minutos} min`} (umbral ${REGLAS.minutosSinSenal} min).`,
-        referencia: activo.ref,
-      },
+    await crearAlerta({
+      tipo: "SIN_SENAL",
+      severidad: minutos > 24 * 60 ? "CRITICA" : "ADVERTENCIA",
+      giro: activo.giro,
+      titulo: `${activo.nombre}: sin señal GPS`,
+      mensaje: `El dispositivo ${d.imei} no reporta desde hace ${minutos >= 120 ? `${Math.floor(minutos / 60)} h` : `${minutos} min`} (umbral ${REGLAS.minutosSinSenal} min).`,
+      referencia: activo.ref,
     });
     creadas++;
   }
@@ -136,15 +135,13 @@ export async function procesarLectura(lectura: LecturaProveedor) {
 
   let creadas = 0;
   if (resultado.excesoVelocidad) {
-    await prisma.alerta.create({
-      data: {
-        tipo: "EXCESO_VELOCIDAD",
-        severidad: lectura.velocidad > REGLAS.velocidadMaximaCamion + 20 ? "CRITICA" : "ADVERTENCIA",
-        giro: activo.giro,
-        titulo: `${activo.nombre}: exceso de velocidad`,
-        mensaje: `Registró ${lectura.velocidad.toFixed(0)} km/h (límite ${REGLAS.velocidadMaximaCamion} km/h) en ${lectura.latitud.toFixed(4)}, ${lectura.longitud.toFixed(4)}.`,
-        referencia: activo.ref,
-      },
+    await crearAlerta({
+      tipo: "EXCESO_VELOCIDAD",
+      severidad: lectura.velocidad > REGLAS.velocidadMaximaCamion + 20 ? "CRITICA" : "ADVERTENCIA",
+      giro: activo.giro,
+      titulo: `${activo.nombre}: exceso de velocidad`,
+      mensaje: `Registró ${lectura.velocidad.toFixed(0)} km/h (límite ${REGLAS.velocidadMaximaCamion} km/h) en ${lectura.latitud.toFixed(4)}, ${lectura.longitud.toFixed(4)}.`,
+      referencia: activo.ref,
     });
     creadas++;
   }
@@ -156,15 +153,13 @@ export async function procesarLectura(lectura: LecturaProveedor) {
       where: { tipo: "USO_EXCESIVO", referencia: activo.ref, createdAt: { gte: inicio } },
     });
     if (!existente) {
-      await prisma.alerta.create({
-        data: {
-          tipo: "USO_EXCESIVO",
-          severidad: "ADVERTENCIA",
-          giro: activo.giro,
-          titulo: `${activo.nombre}: uso continuo prolongado`,
-          mensaje: `Motor encendido por ${resultado.horasUsoContinuo.toFixed(1)} h sin descanso (máximo ${REGLAS.horasUsoContinuoMax} h).`,
-          referencia: activo.ref,
-        },
+      await crearAlerta({
+        tipo: "USO_EXCESIVO",
+        severidad: "ADVERTENCIA",
+        giro: activo.giro,
+        titulo: `${activo.nombre}: uso continuo prolongado`,
+        mensaje: `Motor encendido por ${resultado.horasUsoContinuo.toFixed(1)} h sin descanso (máximo ${REGLAS.horasUsoContinuoMax} h).`,
+        referencia: activo.ref,
       });
       creadas++;
     }

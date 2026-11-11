@@ -1,8 +1,16 @@
 import type { GiroNegocio } from "@/app/generated/prisma/client";
 import type { SessionPayload } from "@/lib/session";
-import { esCorporativo } from "@/lib/auth-rules";
+import { esCorporativo, esInterno, puedeVerComercial, puedeVerReportes } from "@/lib/auth-rules";
 
-export type ItemNav = { href: string; label: string; icono: string; giros?: GiroNegocio[]; soloAdmin?: boolean };
+export type ItemNav = {
+  href: string;
+  label: string;
+  icono: string;
+  giros?: GiroNegocio[];
+  soloAdmin?: boolean;
+  /** Regla propia de visibilidad; reemplaza al filtro por giro. */
+  regla?: (session: SessionPayload) => boolean;
+};
 
 export const NAVEGACION: { seccion: string; items: ItemNav[] }[] = [
   {
@@ -29,20 +37,30 @@ export const NAVEGACION: { seccion: string; items: ItemNav[] }[] = [
     ],
   },
   {
+    seccion: "Comercial",
+    items: [
+      { href: "/ventas", label: "Clientes y pedidos", icono: "Handshake", regla: puedeVerComercial },
+      { href: "/reportes", label: "Reportes", icono: "FileBarChart", regla: puedeVerReportes },
+    ],
+  },
+  {
     seccion: "Administración",
     items: [
       { href: "/admin/usuarios", label: "Usuarios", icono: "Users", soloAdmin: true },
       { href: "/admin/sedes", label: "Sedes", icono: "Building2", soloAdmin: true },
       { href: "/admin/bitacora", label: "Bitácora", icono: "ScrollText", soloAdmin: true },
+      { href: "/admin/integraciones", label: "Integraciones", icono: "PlugZap", soloAdmin: true },
     ],
   },
 ];
 
 export function navegacionPara(session: SessionPayload) {
+  if (!esInterno(session)) return [];
   return NAVEGACION.map((s) => ({
     ...s,
     items: s.items.filter((i) => {
       if (i.soloAdmin) return session.rol === "ADMIN";
+      if (i.regla) return i.regla(session);
       if (!i.giros || esCorporativo(session)) return true;
       return session.giro ? i.giros.includes(session.giro) : false;
     }),

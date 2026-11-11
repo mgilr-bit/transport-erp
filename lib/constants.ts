@@ -3,6 +3,7 @@ import type {
   GiroNegocio,
   ModalidadViaje,
   Rol,
+  TipoAlerta,
   TipoObra,
   TipoSede,
 } from "@/app/generated/prisma/client";
@@ -34,6 +35,9 @@ export const ROLES: Record<Rol, string> = {
   GERENTE: "Gerente de giro",
   CONTADOR: "Contabilidad",
   OPERADOR: "Operador de sede",
+  VENDEDOR: "Vendedor",
+  CLIENTE: "Cliente (portal)",
+  DIRECCION: "Dirección (dueños)",
 };
 
 export const CATEGORIAS_GASTO: Record<CategoriaGasto, string> = {
@@ -60,6 +64,33 @@ export const TIPOS_OBRA: Record<TipoObra, string> = {
   CARRETERA: "Carretera",
   EDIFICIO: "Edificio",
   OTRO: "Otro",
+};
+
+/** Roles del giro que reciben cada tipo de alerta (el administrador ve todas). */
+export const AUDIENCIA_ALERTAS: Record<TipoAlerta, Rol[]> = {
+  EXCESO_VELOCIDAD: ["GERENTE", "OPERADOR", "DIRECCION"],
+  USO_EXCESIVO: ["GERENTE", "OPERADOR"],
+  SIN_SENAL: ["GERENTE", "OPERADOR"],
+  PRESUPUESTO_80: ["GERENTE", "CONTADOR", "DIRECCION"],
+  PRESUPUESTO_100: ["GERENTE", "CONTADOR", "DIRECCION"],
+  INVENTARIO_BAJO: ["GERENTE", "OPERADOR"],
+  PEDIDO: ["VENDEDOR", "GERENTE", "OPERADOR"],
+  REUNION: ["VENDEDOR", "GERENTE"],
+  MENSAJE: ["VENDEDOR", "GERENTE"],
+  RECORDATORIO: ["GERENTE", "OPERADOR"],
+};
+
+export const TIPOS_ALERTA: Record<TipoAlerta, string> = {
+  EXCESO_VELOCIDAD: "Exceso de velocidad",
+  USO_EXCESIVO: "Uso continuo prolongado",
+  SIN_SENAL: "Sin señal GPS",
+  PRESUPUESTO_80: "Presupuesto al 80 %",
+  PRESUPUESTO_100: "Presupuesto excedido",
+  INVENTARIO_BAJO: "Inventario bajo",
+  PEDIDO: "Pedido",
+  REUNION: "Reunión",
+  MENSAJE: "Mensaje de cliente",
+  RECORDATORIO: "Recordatorio",
 };
 
 /** Reglas de negocio configurables */
