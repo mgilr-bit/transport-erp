@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CircleCheck, Clock, Mountain, Truck } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { puedeOperar, requireGiro } from "@/lib/auth";
+import { puedeAprobar, puedeOperar, requireGiro } from "@/lib/auth";
 import { cn, formatFecha, formatNum, toNumber } from "@/lib/utils";
 import type { EstadoSolicitud, Prisma } from "@/app/generated/prisma/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -36,8 +36,10 @@ export default async function FlujoPage({ searchParams }: PageProps<"/flujo">) {
   const pagina = paginaDe(sp.pagina);
 
   const operaProceso = puedeOperar(session, "PROCESO");
-  const operaExtraccion = puedeOperar(session, "EXTRACCION");
   const operaTransporte = puedeOperar(session, "TRANSPORTE_MP");
+  // Aprobar es de la gerencia: Extracción solo despacha desde minas; Proceso también compra a terceros
+  const apruebaProceso = puedeAprobar(session, "PROCESO");
+  const apruebaExtraccion = puedeAprobar(session, "EXTRACCION");
   const hace90 = new Date(new Date().getTime() - 90 * 86_400_000);
   const where: Prisma.SolicitudMateriaPrimaWhereInput = estado ? { estado } : {};
 
@@ -142,7 +144,7 @@ export default async function FlujoPage({ searchParams }: PageProps<"/flujo">) {
                 const stock = toNumber(m.inventarios.find((i) => i.materialId === s.materialId)?.cantidad);
                 return { valor: `mina:${m.id}`, texto: `${nombreMina(m.nombre)} · ${formatNum(stock)} t disponibles`, suficiente: stock >= tonS };
               });
-              const opcProv = operaProceso
+              const opcProv = apruebaProceso
                 ? proveedores.map((p) => ({ valor: `proveedor:${p.id}`, texto: `${p.nombre} · ${p.materiales}`, suficiente: true }))
                 : [];
               return (
@@ -164,7 +166,7 @@ export default async function FlujoPage({ searchParams }: PageProps<"/flujo">) {
                     {s.estado === "RECHAZADA" && s.notas && <p className="mt-1 max-w-48 text-xs text-slate-500">{s.notas}</p>}
                   </Td>
                   <Td>
-                    {s.estado === "PENDIENTE" && (operaProceso || operaExtraccion) && (
+                    {s.estado === "PENDIENTE" && (apruebaProceso || apruebaExtraccion) && (
                       <div className="flex justify-end gap-1.5">
                         <AprobarSolicitud id={s.id} codigo={s.codigo} minas={opcMinas} proveedores={opcProv} />
                         <RechazarSolicitud id={s.id} codigo={s.codigo} />

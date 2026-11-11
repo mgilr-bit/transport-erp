@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { ejecutarAccion, erroresDe, validar, zFecha, zId, zMonto, zTexto, zTextoOpcional, type ActionState } from "@/lib/action";
+import { puedeAprobar } from "@/lib/auth-rules";
+import type { GiroNegocio } from "@/app/generated/prisma/client";
 import { aprobarSolicitud, crearSolicitud, rechazarSolicitud } from "@/lib/services/flujo";
 import { completarOrden, crearOrdenProduccion, iniciarOrden, registrarExtraccion } from "@/lib/services/operaciones";
 
@@ -80,19 +82,22 @@ export async function crearSolicitudAction(_prev: ActionState, formData: FormDat
   });
 }
 
+const APRUEBAN_MINA: GiroNegocio[] = ["EXTRACCION", "PROCESO"];
+const APRUEBAN_PROVEEDOR: GiroNegocio[] = ["PROCESO"];
+
 const AprobarSchema = z.object({
   solicitudId: zId,
   origen: z.string().regex(/^(mina|proveedor):\d+$/, { error: "Seleccione el origen" }),
 });
 
-/** La aprueba Extracción (mina propia) o la gerencia de Proceso (compra a tercero). */
+/** La aprueba la gerencia de Extracción o de Proceso (mina propia) o la de Proceso (compra a tercero); los operadores no aprueban. */
 export async function aprobarSolicitudAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = validar(AprobarSchema, formData);
   if (!parsed.success) return erroresDe(parsed.error);
   const [tipo, id] = parsed.data.origen.split(":");
   const origen = tipo === "mina" ? { minaId: Number(id) } : { proveedorId: Number(id) };
   return ejecutarAccion({
-    giros: tipo === "mina" ? ["EXTRACCION", "PROCESO"] : ["PROCESO"],
+    giros: (session) => (tipo === "mina" ? APRUEBAN_MINA : APRUEBAN_PROVEEDOR).some((g) => puedeAprobar(session, g)),
     ejecutar: () => aprobarSolicitud(parsed.data.solicitudId, origen),
     bitacora: { accion: "APROBAR_SOLICITUD", entidad: "SolicitudMateriaPrima", detalle: parsed.data.origen },
     revalidar: ["/flujo", "/transporte", "/dashboard"],
@@ -106,7 +111,7 @@ export async function rechazarSolicitudAction(_prev: ActionState, formData: Form
   const parsed = validar(RechazarSchema, formData);
   if (!parsed.success) return erroresDe(parsed.error);
   return ejecutarAccion({
-    giros: ["EXTRACCION", "PROCESO"],
+    giros: (session) => APRUEBAN_MINA.some((g) => puedeAprobar(session, g)),
     ejecutar: () => rechazarSolicitud(parsed.data.solicitudId, parsed.data.motivo),
     bitacora: { accion: "RECHAZAR_SOLICITUD", entidad: "SolicitudMateriaPrima", detalle: parsed.data.motivo },
     revalidar: ["/flujo", "/dashboard"],
