@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularPedido, claveDia, diasHasta, elegirVendedor, transicionPedido } from "@/lib/reglas";
+import { calcularPedido, claveDia, diasHasta, elegirVendedor, plazoTexto, transicionPedido } from "@/lib/reglas";
 import { entradaFechaHoraGT, fechaHoraGT } from "@/lib/utils";
 
 describe("cálculo de pedidos", () => {
@@ -100,5 +100,15 @@ describe("fecha y hora de formularios en hora de Guatemala", () => {
 
   it("muestra una fecha como valor de datetime-local en hora de Guatemala", () => {
     expect(entradaFechaHoraGT(new Date("2026-11-12T16:00:00Z"))).toBe("2026-11-12T10:00");
+  });
+});
+
+describe("texto de plazos en recordatorios", () => {
+  it("describe el plazo en días calendario", () => {
+    expect(plazoTexto(-2)).toBe("venció hace 2 días");
+    expect(plazoTexto(-1)).toBe("venció ayer");
+    expect(plazoTexto(0)).toBe("vence hoy");
+    expect(plazoTexto(1)).toBe("vence mañana");
+    expect(plazoTexto(3)).toBe("vence en 3 días");
   });
 });

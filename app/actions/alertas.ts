@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { esInterno, getUsuarioActual, puedeVerGiro } from "@/lib/auth";
 import { alertaVisiblePara, filtroAlertas } from "@/lib/alertas";
-import { mensajeError, type ActionState } from "@/lib/action";
+import { ejecutarAccion, mensajeError, type ActionState } from "@/lib/action";
+import { generarRecordatorios } from "@/lib/services/recordatorios";
 import type { GiroNegocio, SeveridadAlerta, TipoAlerta } from "@/app/generated/prisma/client";
 
 function revalidar() {
@@ -42,4 +43,15 @@ export async function marcarTodasLeidasAction(filtro: { tipo?: TipoAlerta; sever
   } catch (e) {
     return { ok: false, mensaje: mensajeError(e) };
   }
+}
+
+/** Genera ahora los recordatorios del día (normalmente los genera el cron cada mañana). */
+export async function generarRecordatoriosAction() {
+  return ejecutarAccion({
+    giros: (s) => s.rol === "ADMIN",
+    ejecutar: () => generarRecordatorios(),
+    bitacora: { accion: "GENERAR_RECORDATORIOS", entidad: "Alerta" },
+    revalidar: ["/alertas", "/dashboard"],
+    exito: (r) => `${r.creados} recordatorio${r.creados === 1 ? "" : "s"} nuevo${r.creados === 1 ? "" : "s"} (${r.revisados} revisados).`,
+  });
 }

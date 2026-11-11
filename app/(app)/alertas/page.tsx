@@ -14,7 +14,7 @@ import { Filtro } from "@/components/ui/filtro";
 import { POR_PAGINA, Paginacion, paginaDe } from "@/components/ui/paginacion";
 import { ListaAlertas } from "@/components/dominio/lista-alertas";
 import { Barras } from "@/components/charts/barras";
-import { MarcarLeida, MarcarTodas } from "./acciones";
+import { GenerarRecordatorios, MarcarLeida, MarcarTodas } from "./acciones";
 
 export const metadata: Metadata = { title: "Centro de alertas" };
 
@@ -80,6 +80,7 @@ export default async function AlertasPage({ searchParams }: PageProps<"/alertas"
         descripcion="Alertas y recordatorios generados por TransPort ERP a partir del GPS, el presupuesto, los inventarios, los pedidos y la agenda comercial. Cada usuario ve las que corresponden a su rol y giro."
         acciones={
           <>
+            {session.rol === "ADMIN" && <GenerarRecordatorios />}
             <Exportar href="/api/reportes/alertas" texto="Alertas CSV" />
             <MarcarTodas filtro={{ tipo, severidad, giro }} total={pendientesFiltro} />
           </>

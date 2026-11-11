@@ -236,3 +236,12 @@ export function claveDia(fecha: Date) {
 export function diasHasta(fecha: Date, ahora = new Date()) {
   return Math.round((Date.parse(claveDia(fecha)) - Date.parse(claveDia(ahora))) / 86_400_000);
 }
+
+/** Plazo legible para un recordatorio a partir de los días que faltan. */
+export function plazoTexto(dias: number) {
+  if (dias < -1) return `venció hace ${-dias} días`;
+  if (dias === -1) return "venció ayer";
+  if (dias === 0) return "vence hoy";
+  if (dias === 1) return "vence mañana";
+  return `vence en ${dias} días`;
+}

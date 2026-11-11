@@ -1,7 +1,7 @@
 "use client";
 
 import { ActionButton } from "@/components/ui/action-button";
-import { marcarLeidaAction, marcarTodasLeidasAction } from "@/app/actions/alertas";
+import { generarRecordatoriosAction, marcarLeidaAction, marcarTodasLeidasAction } from "@/app/actions/alertas";
 import type { GiroNegocio, SeveridadAlerta, TipoAlerta } from "@/app/generated/prisma/client";
 
 export function MarcarLeida({ id, leida }: { id: number; leida: boolean }) {
@@ -19,4 +19,8 @@ export function MarcarTodas({ filtro, total }: { filtro: { tipo?: TipoAlerta; se
       Marcar {total} como atendidas
     </ActionButton>
   );
+}
+
+export function GenerarRecordatorios() {
+  return <ActionButton action={() => generarRecordatoriosAction()}>Generar recordatorios</ActionButton>;
 }
