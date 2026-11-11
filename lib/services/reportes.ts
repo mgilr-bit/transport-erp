@@ -245,6 +245,21 @@ export const REPORTES: Record<string, Reporte> = {
     },
   },
 
+  "plantilla-pedido": {
+    // Catálogo con la columna cantidad vacía, para llenar e importar en el portal
+    permitido: () => true,
+    async generar() {
+      const productos = await prisma.producto.findMany({ orderBy: [{ categoria: "asc" }, { codigo: "asc" }] });
+      return csv("plantilla-pedido", productos, [
+        { titulo: "codigo", valor: (p) => p.codigo },
+        { titulo: "producto", valor: (p) => p.nombre },
+        { titulo: "unidad", valor: (p) => p.unidad },
+        { titulo: "precio", valor: (p) => toNumber(p.precio) },
+        { titulo: "cantidad", valor: () => null },
+      ]);
+    },
+  },
+
   "estado-de-cuenta": {
     permitido: (s) => s.rol === "CLIENTE" && !!s.clienteId,
     async generar(s, p) {
