@@ -3,6 +3,7 @@ import { Bell, LogOut } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { GIROS, ROLES } from "@/lib/constants";
 import type { SessionPayload } from "@/lib/session";
+import { BotonNotificaciones } from "@/components/pwa/notificaciones";
 
 export function Topbar({ session, alertas }: { session: SessionPayload; alertas: number }) {
   const iniciales = session.nombre
@@ -12,12 +13,13 @@ export function Topbar({ session, alertas }: { session: SessionPayload; alertas:
     .map((p) => p[0])
     .join("");
   return (
-    <header className="sticky top-0 z-20 flex h-16 print:hidden items-center justify-between gap-4 border-b border-slate-200 bg-white/85 px-4 backdrop-blur sm:px-8">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white/85 px-4 backdrop-blur sm:px-8 print:hidden">
       <div className="text-sm text-slate-500">
         <span className="font-medium text-slate-900">{session.giro ? GIROS[session.giro].nombre : "Vista corporativa"}</span>
         <span className="hidden sm:inline"> · {ROLES[session.rol]}</span>
       </div>
       <div className="flex items-center gap-2">
+        <BotonNotificaciones />
         <Link href="/alertas" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700" aria-label={`${alertas} alertas sin leer`}>
           <Bell className="size-5" />
           {alertas > 0 && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-red-500 ring-2 ring-white" />}

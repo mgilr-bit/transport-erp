@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireCliente } from "@/lib/auth";
 import { logout } from "@/app/actions/auth";
 import { NavegacionPortal } from "./navegacion";
+import { BotonNotificaciones } from "@/components/pwa/notificaciones";
 
 export const metadata: Metadata = { title: { default: "Portal de clientes", template: "%s · Portal TransPort" } };
 
@@ -28,6 +29,7 @@ export default async function PortalLayout({ children }: { children: React.React
               <span className="block font-medium text-slate-900">{session.nombre}</span>
               <span className="block text-xs text-slate-500">{cliente.nombre}</span>
             </span>
+            <BotonNotificaciones />
             <form action={logout}>
               <button type="submit" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700" aria-label="Cerrar sesión" title="Cerrar sesión">
                 <LogOut className="size-4.5" />

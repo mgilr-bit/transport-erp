@@ -1,5 +1,7 @@
 import "server-only";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
+import { enviarPushDeAlerta } from "@/lib/services/push";
 import { AUDIENCIA_ALERTAS } from "@/lib/constants";
 import type { GiroNegocio, Prisma, Rol, SeveridadAlerta, TipoAlerta } from "@/app/generated/prisma/client";
 
@@ -20,5 +22,12 @@ export type NuevaAlerta = {
 export async function crearAlerta(datos: NuevaAlerta, tx: Prisma.TransactionClient = prisma) {
   const dirigida = datos.usuarioId != null || datos.clienteId != null;
   const rolesDestino = dirigida ? [] : (datos.rolesDestino ?? AUDIENCIA_ALERTAS[datos.tipo]);
-  return tx.alerta.create({ data: { ...datos, rolesDestino } });
+  const alerta = await tx.alerta.create({ data: { ...datos, rolesDestino } });
+  // Después de responder: para entonces la transacción ya terminó (si se revirtió, no hay alerta que enviar)
+  try {
+    after(() => enviarPushDeAlerta(alerta.id));
+  } catch {
+    // Fuera de una petición (scripts) no se envían notificaciones
+  }
+  return alerta;
 }
