@@ -13,10 +13,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen">
       <Sidebar secciones={secciones} alertas={alertas} />
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 print:pl-0">
         <Topbar session={session} alertas={alertas} />
         <MobileNav secciones={secciones} />
-        <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-8">{children}</main>
+        <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-8 print:max-w-none print:p-0">{children}</main>
       </div>
     </div>
   );

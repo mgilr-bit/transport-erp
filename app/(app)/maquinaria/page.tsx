@@ -5,6 +5,7 @@ import { puedeOperar, requireGiro } from "@/lib/auth";
 import { formatFecha, formatNum, formatQ, toNumber } from "@/lib/utils";
 import type { EstadoMaquina, Prisma } from "@/app/generated/prisma/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
@@ -80,13 +81,18 @@ export default async function MaquinariaPage({ searchParams }: PageProps<"/maqui
       <PageHeader
         titulo="Venta y alquiler de maquinaria"
         descripcion="Inventario de maquinaria de construcción en las sucursales de Guatemala, Xela, Zacapa y Petén."
-        acciones={puede && (
+        acciones={
           <>
-            <NuevaMaquina sedes={sucursales.map((s) => ({ id: s.id, texto: s.nombre }))} />
-            <NuevaVenta maquinas={opcMaquinas} clientes={opcClientes} />
-            <NuevoAlquiler maquinas={opcMaquinas} clientes={opcClientes} />
+            <Exportar href="/api/reportes/alquileres" texto="Alquileres CSV" />
+            {puede && (
+              <>
+                <NuevaMaquina sedes={sucursales.map((s) => ({ id: s.id, texto: s.nombre }))} />
+                <NuevaVenta maquinas={opcMaquinas} clientes={opcClientes} />
+                <NuevoAlquiler maquinas={opcMaquinas} clientes={opcClientes} />
+              </>
+            )}
           </>
-        )}
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

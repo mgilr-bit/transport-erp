@@ -8,6 +8,7 @@ import { GIROS_TODOS, gastosUltimos12Meses } from "@/lib/services/dashboard";
 import { formatFecha, formatPct, formatQ, toNumber } from "@/lib/utils";
 import type { CategoriaGasto, GiroNegocio, Prisma } from "@/app/generated/prisma/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { Filtro } from "@/components/ui/filtro";
@@ -74,6 +75,8 @@ export default async function FinanzasPage({ searchParams }: PageProps<"/finanza
         descripcion={`Cada giro de negocio lleva su propio presupuesto mensual; el gasto se registra por sede y categoría. Periodo: ${nombrePeriodo}.`}
         acciones={
           <>
+            <Exportar href={`/api/reportes/gastos?periodo=${clave(ref)}${giro ? `&giro=${giro}` : ""}${categoria ? `&categoria=${categoria}` : ""}`} texto="Gastos CSV" />
+            <Exportar href={`/api/reportes/presupuesto?periodo=${clave(ref)}`} texto="Presupuesto CSV" />
             {puedeDefinirPresupuesto(session) && <DefinirPresupuesto giros={opciones} periodo={{ anio, mes }} nombrePeriodo={nombrePeriodo} />}
             {operables.length > 0 && <NuevoGasto giros={opciones.filter((o) => operables.includes(o.valor))} sedes={sedes.map((s) => ({ id: s.id, texto: s.nombre, giro: s.giro }))} periodo={{ anio, mes }} />}
           </>

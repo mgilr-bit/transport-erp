@@ -6,6 +6,7 @@ import { GIROS, MODALIDADES } from "@/lib/constants";
 import { formatFecha, formatNum, formatQ, toNumber } from "@/lib/utils";
 import type { GiroNegocio, Prisma, TipoViaje } from "@/app/generated/prisma/client";
 import { Card } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
@@ -75,32 +76,35 @@ export default async function TransportePage({ searchParams }: PageProps<"/trans
         titulo="Transporte"
         descripcion="Viajes de materia prima (Cemex, Cementos Progreso, Hispacensa y plantas propias) y de productos: inter puertos, inter fronteras y puerto ↔ bodega."
         acciones={
-          tiposOperables.length > 0 && (
-            <>
-              <NuevoCamion giros={tiposOperables.map((t) => ({ valor: GIRO_DE[t], texto: t === "MATERIA_PRIMA" ? "Transporte de materia prima" : "Transporte de productos" }))} sedes={centros.map((c) => ({ id: c.id, texto: c.nombre }))} />
-              <NuevoViaje
-                tipos={tiposOperables}
-                camiones={camiones.filter((c) => c.estado === "DISPONIBLE" && tiposOperables.some((t) => GIRO_DE[t] === c.giro)).map((c) => ({ id: c.id, texto: `${c.placa} · ${c.tipo} · ${toNumber(c.capacidadTon)} t`, tipo: c.giro === "TRANSPORTE_MP" ? "MATERIA_PRIMA" : "PRODUCTO", capacidad: toNumber(c.capacidadTon) }))}
-                pilotos={pilotos.filter((p) => p.activo && p.viajes.length === 0).map((p) => ({ id: p.id, texto: `${p.nombre} · Lic. ${p.licencia}` }))}
-                clientes={clientes.map((c) => ({ id: c.id, texto: `${c.nombre}${c.tipo === "EXTRANJERO" ? " (extranjero)" : ""}` }))}
-                solicitudes={solicitudes.map((s) => ({
-                  id: s.id,
-                  texto: `${s.codigo} · ${s.material.nombre} ${toNumber(s.toneladas)} t → ${s.planta.nombre}`,
-                  origen: s.mina?.nombre ?? s.proveedor?.nombre ?? "",
-                  destino: s.planta.nombre,
-                  carga: s.material.nombre,
-                  toneladas: toNumber(s.toneladas),
-                }))}
-                pedidos={pedidos.map((p) => ({
-                  id: p.id,
-                  texto: `${p.codigo} · ${p.cliente?.nombre ?? (p.giroSolicitante ? GIROS[p.giroSolicitante].corto : "Interno")} · ${p.items.length} producto${p.items.length === 1 ? "" : "s"}`,
-                  origen: p.planta?.nombre ?? "Planta de proceso",
-                  destino: p.direccionEntrega,
-                  carga: p.items.map((i) => i.producto.nombre).join(", ").slice(0, 120),
-                }))}
-              />
-            </>
-          )
+          <>
+            <Exportar href={`/api/reportes/viajes${tipo ? `?tipo=${tipo}` : ""}`} texto="Viajes CSV" />
+            {tiposOperables.length > 0 && (
+              <>
+                <NuevoCamion giros={tiposOperables.map((t) => ({ valor: GIRO_DE[t], texto: t === "MATERIA_PRIMA" ? "Transporte de materia prima" : "Transporte de productos" }))} sedes={centros.map((c) => ({ id: c.id, texto: c.nombre }))} />
+                <NuevoViaje
+                  tipos={tiposOperables}
+                  camiones={camiones.filter((c) => c.estado === "DISPONIBLE" && tiposOperables.some((t) => GIRO_DE[t] === c.giro)).map((c) => ({ id: c.id, texto: `${c.placa} · ${c.tipo} · ${toNumber(c.capacidadTon)} t`, tipo: c.giro === "TRANSPORTE_MP" ? "MATERIA_PRIMA" : "PRODUCTO", capacidad: toNumber(c.capacidadTon) }))}
+                  pilotos={pilotos.filter((p) => p.activo && p.viajes.length === 0).map((p) => ({ id: p.id, texto: `${p.nombre} · Lic. ${p.licencia}` }))}
+                  clientes={clientes.map((c) => ({ id: c.id, texto: `${c.nombre}${c.tipo === "EXTRANJERO" ? " (extranjero)" : ""}` }))}
+                  solicitudes={solicitudes.map((s) => ({
+                    id: s.id,
+                    texto: `${s.codigo} · ${s.material.nombre} ${toNumber(s.toneladas)} t → ${s.planta.nombre}`,
+                    origen: s.mina?.nombre ?? s.proveedor?.nombre ?? "",
+                    destino: s.planta.nombre,
+                    carga: s.material.nombre,
+                    toneladas: toNumber(s.toneladas),
+                  }))}
+                  pedidos={pedidos.map((p) => ({
+                    id: p.id,
+                    texto: `${p.codigo} · ${p.cliente?.nombre ?? (p.giroSolicitante ? GIROS[p.giroSolicitante].corto : "Interno")} · ${p.items.length} producto${p.items.length === 1 ? "" : "s"}`,
+                    origen: p.planta?.nombre ?? "Planta de proceso",
+                    destino: p.direccionEntrega,
+                    carga: p.items.map((i) => i.producto.nombre).join(", ").slice(0, 120),
+                  }))}
+                />
+              </>
+            )}
+          </>
         }
       />
 

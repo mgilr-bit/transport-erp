@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { puedeOperar, requireGiro } from "@/lib/auth";
 import { formatFecha, formatNum, formatQ, toNumber } from "@/lib/utils";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { EmptyRow, Table, Td, Th, Tr } from "@/components/ui/table";
@@ -43,7 +44,13 @@ export default async function ExtraccionPage() {
       <PageHeader
         titulo="Extracción minera"
         descripcion="Producción de las plantas de extracción e inventario de materia prima disponible para las plantas de proceso."
-        acciones={puedeOperar(session, "EXTRACCION") && <NuevaExtraccion minas={minas.map((m) => ({ id: m.id, texto: `${m.nombre} (${m.departamento})` }))} materiales={materiales.map((m) => ({ id: m.id, texto: m.nombre }))} />}
+        acciones={
+          <>
+            <Exportar href="/api/reportes/extraccion" texto="Extracción CSV" />
+            <Exportar href="/api/reportes/inventario" texto="Inventario CSV" />
+            {puedeOperar(session, "EXTRACCION") && <NuevaExtraccion minas={minas.map((m) => ({ id: m.id, texto: `${m.nombre} (${m.departamento})` }))} materiales={materiales.map((m) => ({ id: m.id, texto: m.nombre }))} />}
+          </>
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat etiqueta="Extraído este mes" valor={`${formatNum(tonMes)} t`} detalle={`${formatNum(ton30)} t en los últimos 30 días`} icono={Pickaxe} tono="amber" />

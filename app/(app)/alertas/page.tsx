@@ -7,6 +7,7 @@ import { enlaceDeReferencia, filtroAlertas } from "@/lib/alertas";
 import { GIROS, GIROS_OPERATIVOS, TIPOS_ALERTA as TIPOS } from "@/lib/constants";
 import type { Alerta, GiroNegocio, Prisma, SeveridadAlerta, TipoAlerta } from "@/app/generated/prisma/client";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { Filtro } from "@/components/ui/filtro";
@@ -77,7 +78,12 @@ export default async function AlertasPage({ searchParams }: PageProps<"/alertas"
       <PageHeader
         titulo="Centro de alertas"
         descripcion="Alertas y recordatorios generados por TransPort ERP a partir del GPS, el presupuesto, los inventarios, los pedidos y la agenda comercial. Cada usuario ve las que corresponden a su rol y giro."
-        acciones={<MarcarTodas filtro={{ tipo, severidad, giro }} total={pendientesFiltro} />}
+        acciones={
+          <>
+            <Exportar href="/api/reportes/alertas" texto="Alertas CSV" />
+            <MarcarTodas filtro={{ tipo, severidad, giro }} total={pendientesFiltro} />
+          </>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

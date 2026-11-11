@@ -10,7 +10,7 @@ import type { ItemNav } from "@/lib/navegacion";
 export function Sidebar({ secciones, alertas }: { secciones: { seccion: string; items: ItemNav[] }[]; alertas: number }) {
   const pathname = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-slate-950 text-slate-300 lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-slate-950 text-slate-300 lg:flex print:hidden">
       <div className="flex h-16 items-center gap-3 border-b border-white/5 px-5">
         <span className="grid size-8 place-items-center rounded-lg bg-blue-600 text-white">
           <Truck className="size-4.5" aria-hidden />
@@ -61,7 +61,7 @@ export function Sidebar({ secciones, alertas }: { secciones: { seccion: string; 
 export function MobileNav({ secciones }: { secciones: { seccion: string; items: ItemNav[] }[] }) {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 lg:hidden" aria-label="Principal móvil">
+    <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 lg:hidden print:hidden" aria-label="Principal móvil">
       {secciones.flatMap((s) => s.items).map((item) => (
         <Link
           key={item.href}

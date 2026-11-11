@@ -12,7 +12,7 @@ export function Topbar({ session, alertas }: { session: SessionPayload; alertas:
     .map((p) => p[0])
     .join("");
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white/85 px-4 backdrop-blur sm:px-8">
+    <header className="sticky top-0 z-20 flex h-16 print:hidden items-center justify-between gap-4 border-b border-slate-200 bg-white/85 px-4 backdrop-blur sm:px-8">
       <div className="text-sm text-slate-500">
         <span className="font-medium text-slate-900">{session.giro ? GIROS[session.giro].nombre : "Vista corporativa"}</span>
         <span className="hidden sm:inline"> · {ROLES[session.rol]}</span>

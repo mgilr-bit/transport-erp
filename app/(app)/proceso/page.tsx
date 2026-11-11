@@ -5,6 +5,7 @@ import { puedeOperar, requireGiro } from "@/lib/auth";
 import { formatFecha, formatNum, formatQ, toNumber } from "@/lib/utils";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { Card, CardHeader } from "@/components/ui/card";
+import { Exportar } from "@/components/ui/exportar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
 import { Tabs } from "@/components/ui/tabs";
@@ -45,12 +46,18 @@ export default async function ProcesoPage({ searchParams }: PageProps<"/proceso"
       <PageHeader
         titulo="Plantas de proceso"
         descripcion="Producción de pisos cerámicos y materiales de construcción en Zacapa, Huehuetenango y Petén."
-        acciones={puede && (
+        acciones={
           <>
-            <NuevaSolicitud plantas={opcPlantas} materiales={materiales.map((m) => ({ id: m.id, texto: m.nombre }))} />
-            <NuevaOrden plantas={opcPlantas} productos={productos.map((p) => ({ id: p.id, texto: `${p.nombre} (${p.unidad})` }))} />
+            <Exportar href="/api/reportes/produccion" texto="Producción CSV" />
+            <Exportar href="/api/reportes/inventario" texto="Inventario CSV" />
+            {puede && (
+              <>
+                <NuevaSolicitud plantas={opcPlantas} materiales={materiales.map((m) => ({ id: m.id, texto: m.nombre }))} />
+                <NuevaOrden plantas={opcPlantas} productos={productos.map((p) => ({ id: p.id, texto: `${p.nombre} (${p.unidad})` }))} />
+              </>
+            )}
           </>
-        )}
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat etiqueta="Producción terminada (mes)" valor={formatQ(valorMes, true)} detalle={`${completadasMes.length} órdenes completadas`} icono={PackageCheck} tono="green" />
