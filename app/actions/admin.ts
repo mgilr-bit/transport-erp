@@ -17,12 +17,19 @@ const UsuarioSchema = z
     nombre: zTexto(3),
     email: z.email({ error: "Correo inválido" }).trim().toLowerCase(),
     password: zPassword,
-    rol: z.enum(["ADMIN", "GERENTE", "CONTADOR", "OPERADOR"]),
+    rol: z.enum(["ADMIN", "GERENTE", "CONTADOR", "OPERADOR", "VENDEDOR", "CLIENTE", "DIRECCION"]),
     giro: z.preprocess((v) => (v === "" ? null : v), z.enum(GIROS_OPERATIVOS as [GiroNegocio, ...GiroNegocio[]]).nullable()),
     sedeId: zIdOpcional,
+    clienteId: zIdOpcional,
   })
-  // ADMIN y CONTADOR son corporativos; GERENTE y OPERADOR pertenecen a un giro
-  .refine((d) => (d.rol === "ADMIN" || d.rol === "CONTADOR" ? d.giro === null : d.giro !== null), { error: "Gerentes y operadores requieren giro; administración y contabilidad no", path: ["giro"] });
+  // Gerentes, operadores y vendedores pertenecen a un giro; los demás roles no
+  .refine((d) => (["GERENTE", "OPERADOR", "VENDEDOR"].includes(d.rol) ? d.giro !== null : d.giro === null), {
+    error: "Gerentes, vendedores y operadores requieren giro; administración, contabilidad, dirección y clientes no",
+    path: ["giro"],
+  })
+  // Un usuario de portal pertenece a un cliente y no tiene sede
+  .refine((d) => (d.rol === "CLIENTE" ? d.clienteId !== null : d.clienteId === null), { error: "Seleccione el cliente", path: ["clienteId"] })
+  .transform((d) => (d.rol === "CLIENTE" ? { ...d, sedeId: null } : d));
 
 export async function crearUsuarioAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = validar(UsuarioSchema, formData);

@@ -10,14 +10,22 @@ import { GIROS, GIROS_OPERATIVOS, ROLES } from "@/lib/constants";
 type Sede = { id: number; texto: string; giro: string };
 const REQUISITO = "Mínimo 8 caracteres, una mayúscula y un número.";
 
-export function NuevoUsuario({ sedes }: { sedes: Sede[] }) {
+export function NuevoUsuario({ sedes, clientes }: { sedes: Sede[]; clientes: { id: number; texto: string }[] }) {
   const [rol, setRol] = useState("GERENTE");
   const [giro, setGiro] = useState<string>(GIROS_OPERATIVOS[0]);
-  const corporativo = rol === "ADMIN" || rol === "CONTADOR";
+  const esCliente = rol === "CLIENTE";
+  const corporativo = rol === "ADMIN" || rol === "CONTADOR" || rol === "DIRECCION" || esCliente;
   const giroSede = corporativo ? "CORPORATIVO" : giro;
 
   return (
-    <FormModal boton="Nuevo usuario" titulo="Nuevo usuario" descripcion="Administración y contabilidad tienen vista corporativa; gerentes y operadores, la de su giro." action={crearUsuarioAction} enviar="Crear usuario" ancho="max-w-xl">
+    <FormModal
+      boton="Nuevo usuario"
+      titulo="Nuevo usuario"
+      descripcion="Administración, contabilidad y dirección tienen vista corporativa; gerentes, vendedores y operadores, la de su giro; los clientes, solo el portal."
+      action={crearUsuarioAction}
+      enviar="Crear usuario"
+      ancho="max-w-xl"
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nombre completo" name="nombre" className="sm:col-span-2"><Input name="nombre" placeholder="Ing. Ana López" /></Field>
         <Field label="Correo" name="email"><Input name="email" type="email" placeholder="ana.lopez@transport.gt" autoComplete="off" /></Field>
@@ -27,20 +35,32 @@ export function NuevoUsuario({ sedes }: { sedes: Sede[] }) {
             {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
         </Field>
-        <Field label="Giro de negocio" name="giro">
-          {/* Un select deshabilitado no se envía: el valor vacío va en un campo oculto */}
-          {corporativo && <input type="hidden" name="giro" value="" />}
-          <Select name={corporativo ? undefined : "giro"} id="giro" value={corporativo ? "" : giro} disabled={corporativo} onChange={(e) => setGiro(e.target.value)}>
-            {corporativo && <option value="">Corporativo (todos)</option>}
-            {GIROS_OPERATIVOS.map((g) => <option key={g} value={g}>{GIROS[g].nombre}</option>)}
-          </Select>
-        </Field>
-        <Field label="Sede" name="sedeId" className="sm:col-span-2">
-          <Select name="sedeId" key={giroSede} defaultValue="">
-            <option value="">— Sin sede fija —</option>
-            {sedes.filter((s) => s.giro === giroSede).map((s) => <option key={s.id} value={s.id}>{s.texto}</option>)}
-          </Select>
-        </Field>
+        {esCliente ? (
+          <Field label="Cliente" name="clienteId">
+            <input type="hidden" name="giro" value="" />
+            <Select name="clienteId" defaultValue="">
+              <option value="" disabled>Seleccione…</option>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{c.texto}</option>)}
+            </Select>
+          </Field>
+        ) : (
+          <Field label="Giro de negocio" name="giro">
+            {/* Un select deshabilitado no se envía: el valor vacío va en un campo oculto */}
+            {corporativo && <input type="hidden" name="giro" value="" />}
+            <Select name={corporativo ? undefined : "giro"} id="giro" value={corporativo ? "" : giro} disabled={corporativo} onChange={(e) => setGiro(e.target.value)}>
+              {corporativo && <option value="">Corporativo (todos)</option>}
+              {GIROS_OPERATIVOS.map((g) => <option key={g} value={g}>{GIROS[g].nombre}</option>)}
+            </Select>
+          </Field>
+        )}
+        {!esCliente && (
+          <Field label="Sede" name="sedeId" className="sm:col-span-2">
+            <Select name="sedeId" key={giroSede} defaultValue="">
+              <option value="">— Sin sede fija —</option>
+              {sedes.filter((s) => s.giro === giroSede).map((s) => <option key={s.id} value={s.id}>{s.texto}</option>)}
+            </Select>
+          </Field>
+        )}
       </div>
     </FormModal>
   );

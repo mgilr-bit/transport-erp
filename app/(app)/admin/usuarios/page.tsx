@@ -15,17 +15,21 @@ const TONO_ROL = { ADMIN: "violeta", DIRECCION: "violeta", CONTADOR: "azul", GER
 
 export default async function UsuariosPage() {
   const session = await requireAdmin();
-  const [usuarios, sedes] = await Promise.all([
-    prisma.usuario.findMany({ include: { sede: { select: { nombre: true } }, _count: { select: { bitacora: true } } }, orderBy: [{ activo: "desc" }, { rol: "asc" }, { nombre: "asc" }] }),
+  const [usuarios, sedes, clientes] = await Promise.all([
+    prisma.usuario.findMany({
+      include: { sede: { select: { nombre: true } }, cliente: { select: { nombre: true } }, _count: { select: { bitacora: true } } },
+      orderBy: [{ activo: "desc" }, { rol: "asc" }, { nombre: "asc" }],
+    }),
     prisma.sede.findMany({ where: { activa: true }, select: { id: true, nombre: true, giro: true }, orderBy: { nombre: "asc" } }),
+    prisma.cliente.findMany({ select: { id: true, nombre: true }, orderBy: { nombre: "asc" } }),
   ]);
 
   return (
     <>
       <PageHeader
         titulo="Usuarios"
-        descripcion="Cuentas del personal de la sede central y de cada giro de negocio. El rol y el giro determinan qué módulos ve y opera cada persona."
-        acciones={<NuevoUsuario sedes={sedes.map((s) => ({ id: s.id, texto: s.nombre, giro: s.giro }))} />}
+        descripcion="Cuentas del personal de la sede central y de cada giro, y accesos de clientes al portal. El rol y el giro determinan qué ve y opera cada persona."
+        acciones={<NuevoUsuario sedes={sedes.map((s) => ({ id: s.id, texto: s.nombre, giro: s.giro }))} clientes={clientes.map((c) => ({ id: c.id, texto: c.nombre }))} />}
       />
       <Card>
         <Table>
@@ -35,7 +39,11 @@ export default async function UsuariosPage() {
               <Tr key={u.id} className={u.activo ? undefined : "opacity-60"}>
                 <Td><p className="font-medium text-slate-900">{u.nombre}{u.id === session.usuarioId && <span className="ml-2 text-xs font-normal text-slate-400">(usted)</span>}</p><p className="text-xs text-slate-500">{u.email}</p></Td>
                 <Td><Badge tono={TONO_ROL[u.rol]}>{ROLES[u.rol]}</Badge></Td>
-                <Td className="text-xs">{u.giro ? <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: GIROS[u.giro].color }} />{GIROS[u.giro].corto}</span> : <span className="text-slate-500">Corporativo</span>}</Td>
+                <Td className="text-xs">
+                  {u.cliente ? <span className="text-slate-600">Portal · {u.cliente.nombre}</span>
+                    : u.giro ? <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: GIROS[u.giro].color }} />{GIROS[u.giro].corto}</span>
+                    : <span className="text-slate-500">Corporativo</span>}
+                </Td>
                 <Td className="text-xs">{u.sede?.nombre ?? "—"}</Td>
                 <Td className="text-xs whitespace-nowrap">{u.ultimoAcceso ? formatFecha(u.ultimoAcceso, true) : "Nunca"}</Td>
                 <Td className="text-right">{u._count.bitacora}</Td>
