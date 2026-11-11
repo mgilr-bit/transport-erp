@@ -1,0 +1,68 @@
+# Despliegue reproducible de TransPort ERP: PostgreSQL, migraciones, aplicación y recordatorios diarios.
+#   SESSION_SECRET=$(openssl rand -hex 32) SEED=1 docker compose up --build   # primera vez, con datos de demostración
+#   docker compose up -d                                                     # siguientes veces
+name: transport-erp
+
+x-base-datos: &base-datos postgresql://transport:${POSTGRES_PASSWORD:-transport}@db:5432/transport_erp
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: transport
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transport}
+      POSTGRES_DB: transport_erp
+    volumes:
+      - datos:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transport -d transport_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    environment:
+      DATABASE_URL: *base-datos
+      SEED: ${SEED:-0}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+    environment:
+      DATABASE_URL: *base-datos
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET (openssl rand -hex 32)}
+      GPS_WEBHOOK_TOKEN: ${GPS_WEBHOOK_TOKEN:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:sistemas@transport.gt}
+    ports:
+      - "${PUERTO:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Equivalente al cron de Vercel: genera los recordatorios todos los días a las 6:00 (12:00 UTC)
+  recordatorios:
+    image: alpine:3.20
+    environment:
+      CRON_SECRET: ${CRON_SECRET:-}
+    command: >
+      sh -c 'echo "0 12 * * * wget -qO- --header \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/recordatorios" > /etc/crontabs/root && crond -f -l 8'
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  datos:
