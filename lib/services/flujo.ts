@@ -43,10 +43,24 @@ export async function aprobarSolicitud(id: number, origen: { minaId?: number; pr
       throw new Error("La mina seleccionada no tiene existencias suficientes del material");
     }
   }
-  return prisma.solicitudMateriaPrima.update({
+  const aprobada = await prisma.solicitudMateriaPrima.update({
     where: { id },
     data: { estado: "APROBADA", minaId: origen.minaId ?? null, proveedorId: origen.proveedorId ?? null },
+    include: { material: true, planta: { select: { nombre: true, direccion: true } } },
   });
+  // Compra a un tercero: su sistema recibe el pedido por webhook
+  if (aprobada.proveedorId) {
+    emitirEvento("solicitud.aprobada", { proveedorId: aprobada.proveedorId }, {
+      codigo: aprobada.codigo,
+      material: aprobada.material.codigo,
+      nombreMaterial: aprobada.material.nombre,
+      toneladas: toNumber(aprobada.toneladas),
+      planta: aprobada.planta.nombre,
+      direccion: aprobada.planta.direccion,
+      fechaRequerida: aprobada.fechaRequerida.toISOString(),
+    });
+  }
+  return aprobada;
 }
 
 export async function rechazarSolicitud(id: number, motivo: string) {
