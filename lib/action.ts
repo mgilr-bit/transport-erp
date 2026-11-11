@@ -20,6 +20,15 @@ export function validar<T extends z.ZodType>(schema: T, formData: FormData) {
   return schema.safeParse(datos);
 }
 
+/** Líneas de un pedido enviadas como campos `productoId` y `cantidad` repetidos; omite las filas vacías. */
+export function lineasDePedido(formData: FormData) {
+  const ids = formData.getAll("productoId");
+  const cantidades = formData.getAll("cantidad");
+  return ids
+    .map((id, i) => ({ productoId: Number(id), cantidad: Number(cantidades[i]) }))
+    .filter((l) => Number.isInteger(l.productoId) && l.productoId > 0 && Number.isFinite(l.cantidad));
+}
+
 export function erroresDe(error: z.ZodError): ActionState {
   return { ok: false, mensaje: "Revise los campos marcados.", errores: z.flattenError(error).fieldErrors as ActionState["errores"] };
 }

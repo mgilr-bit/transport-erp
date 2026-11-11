@@ -1,6 +1,10 @@
 import type {
+  CanalPedido,
   CategoriaGasto,
+  EstadoPedido,
+  EstadoReunion,
   GiroNegocio,
+  ModalidadReunion,
   ModalidadViaje,
   Rol,
   TipoAlerta,
@@ -109,3 +113,44 @@ export const TIPOS_SEDE: Record<TipoSede, { nombre: string; giros: GiroNegocio[]
   CENTRO_TRANSPORTE: { nombre: "Centro de transporte", giros: ["TRANSPORTE_MP", "TRANSPORTE_PROD"] },
   OFICINA_CONSTRUCCION: { nombre: "Oficina de construcción", giros: ["CONSTRUCCION"] },
 };
+
+// ─── Comercial ─────────────────────────────────────────────────────────────
+
+export const SEDE_CENTRAL = "Edificio Sixtino, zona 10, Ciudad de Guatemala";
+
+export const ESTADOS_PEDIDO: Record<EstadoPedido, string> = {
+  SOLICITADO: "Solicitado",
+  CONFIRMADO: "Confirmado",
+  EN_PREPARACION: "En preparación",
+  DESPACHADO: "Despachado",
+  ENTREGADO: "Entregado",
+  CANCELADO: "Cancelado",
+};
+
+export const CANALES_PEDIDO: Record<CanalPedido, string> = {
+  PORTAL: "Portal de clientes",
+  API: "API",
+  CSV: "Archivo CSV",
+  INTERNO: "Pedido entre giros",
+};
+
+export const ESTADOS_REUNION: Record<EstadoReunion, string> = {
+  SOLICITADA: "Solicitada",
+  CONFIRMADA: "Confirmada",
+  REALIZADA: "Realizada",
+  CANCELADA: "Cancelada",
+};
+
+export const MODALIDADES_REUNION: Record<ModalidadReunion, string> = {
+  PRESENCIAL: "Presencial (Edificio Sixtino, zona 10)",
+  VIDEOCONFERENCIA: "Videoconferencia",
+};
+
+/** Eventos que un sistema externo puede recibir por webhook. */
+export const EVENTOS_WEBHOOK = {
+  "pedido.creado": "Un cliente registró un pedido",
+  "pedido.actualizado": "Un pedido cambió de estado",
+  "viaje.actualizado": "Un viaje del cliente salió o fue entregado",
+  "solicitud.aprobada": "Se asignó una compra de materia prima al proveedor",
+} as const;
+export type EventoWebhook = keyof typeof EVENTOS_WEBHOOK;

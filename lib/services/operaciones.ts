@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { ajustarInventario } from "@/lib/services/inventario";
-import { siguienteCodigo } from "@/lib/services/flujo";
+import { siguienteCodigo } from "@/lib/services/codigos";
 import { registrarGasto } from "@/lib/services/finanzas";
 import { calcularAlquiler, calcularAvance, calcularRequerimientos, rangosSeSolapan } from "@/lib/reglas";
 import { toNumber } from "@/lib/utils";

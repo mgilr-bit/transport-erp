@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Progreso, Stat } from "@/components/ui/stat";
 import { EmptyRow, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Badge, EstadoBadge } from "@/components/ui/badge";
-import { AsignarMaquina, CasillaHito, EstadoProyecto, LiberarMaquina, NuevoCosto, NuevoHito } from "../formularios";
+import { AsignarMaquina, CasillaHito, EstadoProyecto, LiberarMaquina, NuevoCosto, NuevoHito, PedirMateriales } from "../formularios";
 
 export async function generateMetadata({ params }: PageProps<"/construccion/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -38,9 +38,11 @@ export default async function ProyectoPage({ params }: PageProps<"/construccion/
 
   const puede = puedeOperar(session, "CONSTRUCCION");
   const abierta = proyecto.estado !== "FINALIZADO";
-  const [costos, disponibles] = await Promise.all([
+  const [costos, disponibles, pedidos, productos] = await Promise.all([
     prisma.gasto.findMany({ where: { giro: "CONSTRUCCION", documento: proyecto.codigo }, orderBy: { fecha: "desc" }, take: 15 }),
     puede && abierta ? prisma.maquina.findMany({ where: { estado: "DISPONIBLE" }, include: { sede: { select: { departamento: true } } }, orderBy: { codigo: "asc" } }) : [],
+    prisma.pedido.findMany({ where: { proyectoId: id }, include: { _count: { select: { items: true } } }, orderBy: { createdAt: "desc" }, take: 10 }),
+    puede && abierta ? prisma.producto.findMany({ orderBy: [{ categoria: "asc" }, { nombre: "asc" }] }) : [],
   ]);
 
   const ahora = new Date();
@@ -64,6 +66,11 @@ export default async function ProyectoPage({ params }: PageProps<"/construccion/
         acciones={puede && abierta && (
           <>
             <EstadoProyecto id={proyecto.id} estado={proyecto.estado} />
+            <PedirMateriales
+              proyectoId={proyecto.id}
+              direccion={`${proyecto.ubicacion}, ${proyecto.departamento}`}
+              productos={productos.map((p) => ({ id: p.id, nombre: p.nombre, unidad: p.unidad, precio: toNumber(p.precio) }))}
+            />
             <NuevoCosto proyectoId={proyecto.id} />
           </>
         )}
@@ -123,6 +130,25 @@ export default async function ProyectoPage({ params }: PageProps<"/construccion/
                 </li>
               ))}
               {!proyecto.maquinas.length && <li className="py-6 text-center text-sm text-slate-400">Sin maquinaria asignada</li>}
+            </ul>
+          </Card>
+
+          <Card>
+            <CardHeader title="Pedidos de materiales" description="A Plantas de proceso; se cargan como costo al entregarse" />
+            <ul className="divide-y divide-slate-100 px-5 py-1">
+              {pedidos.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div>
+                    <p className="font-mono text-xs text-slate-900">{p.codigo}</p>
+                    <p className="text-xs text-slate-500">{p._count.items} producto{p._count.items === 1 ? "" : "s"} · {formatFecha(p.createdAt)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-900 tabular">{formatQ(p.total)}</span>
+                    <EstadoBadge estado={p.estado} />
+                  </div>
+                </li>
+              ))}
+              {!pedidos.length && <li className="py-6 text-center text-sm text-slate-400">Sin pedidos de materiales</li>}
             </ul>
           </Card>
 

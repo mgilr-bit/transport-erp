@@ -6,8 +6,9 @@ import { FormModal } from "@/components/ui/form-modal";
 import { ActionButton } from "@/components/ui/action-button";
 import {
   agregarHitoAction, alternarHitoAction, asignarMaquinaAction, cambiarEstadoProyectoAction,
-  crearProyectoAction, liberarMaquinaAction, registrarCostoAction,
+  crearProyectoAction, liberarMaquinaAction, pedirMaterialesAction, registrarCostoAction,
 } from "@/app/actions/construccion";
+import { LineasPedido, type ProductoPedido } from "@/components/dominio/lineas-pedido";
 import { CATEGORIAS_GASTO, TIPOS_OBRA } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -117,5 +118,29 @@ export function CasillaHito({ id, proyectoId, completado, habilitado }: { id: nu
         {caja}
       </ActionButton>
     </span>
+  );
+}
+
+export function PedirMateriales({ proyectoId, direccion, productos }: { proyectoId: number; direccion: string; productos: ProductoPedido[] }) {
+  return (
+    <FormModal
+      boton="Pedir materiales"
+      titulo="Pedido de materiales a Plantas de proceso"
+      descripcion="Al entregarse, el total se registra como costo de materiales de la obra."
+      action={pedirMaterialesAction}
+      enviar="Enviar pedido"
+      variante="secundario"
+      ancho="max-w-2xl"
+    >
+      <input type="hidden" name="proyectoId" value={proyectoId} />
+      <div className="grid gap-4">
+        <LineasPedido productos={productos} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Entregar en" name="direccionEntrega"><Input name="direccionEntrega" defaultValue={direccion} /></Field>
+          <Field label="Fecha requerida" name="fechaRequerida"><Input name="fechaRequerida" type="date" min={hoy()} /></Field>
+        </div>
+        <Field label="Notas" name="notas"><Textarea name="notas" rows={2} placeholder="Horario de recepción, contacto en obra…" /></Field>
+      </div>
+    </FormModal>
   );
 }

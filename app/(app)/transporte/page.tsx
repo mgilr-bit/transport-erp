@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CircleDollarSign, Route, Truck, Wrench } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { puedeOperar, puedeVerGiro, requireGiro } from "@/lib/auth";
-import { MODALIDADES } from "@/lib/constants";
+import { GIROS, MODALIDADES } from "@/lib/constants";
 import { formatFecha, formatNum, formatQ, toNumber } from "@/lib/utils";
 import type { GiroNegocio, Prisma, TipoViaje } from "@/app/generated/prisma/client";
 import { Card } from "@/components/ui/card";
@@ -42,10 +42,10 @@ export default async function TransportePage({ searchParams }: PageProps<"/trans
   const whereCamion: Prisma.CamionWhereInput = { giro: tipo ? GIRO_DE[tipo] : { in: girosVisibles } };
   const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
-  const [viajes, totalViajes, camiones, pilotos, flota, facturado, kmMes, clientes, solicitudes, centros] = await Promise.all([
+  const [viajes, totalViajes, camiones, pilotos, flota, facturado, kmMes, clientes, solicitudes, centros, pedidos] = await Promise.all([
     prisma.viaje.findMany({
       where: whereViaje,
-      include: { camion: { select: { placa: true } }, piloto: { select: { nombre: true } }, cliente: { select: { nombre: true } }, solicitud: { select: { codigo: true } } },
+      include: { camion: { select: { placa: true } }, piloto: { select: { nombre: true } }, cliente: { select: { nombre: true } }, solicitud: { select: { codigo: true } }, pedido: { select: { codigo: true } } },
       orderBy: { fechaSalida: "desc" },
       skip: (pagina - 1) * POR_PAGINA,
       take: POR_PAGINA,
@@ -59,6 +59,12 @@ export default async function TransportePage({ searchParams }: PageProps<"/trans
     prisma.cliente.findMany({ select: { id: true, nombre: true, tipo: true }, orderBy: { nombre: "asc" } }),
     prisma.solicitudMateriaPrima.findMany({ where: { estado: "APROBADA" }, include: { planta: true, mina: true, proveedor: true, material: true } }),
     prisma.sede.findMany({ where: { tipo: "CENTRO_TRANSPORTE", giro: { in: girosVisibles } }, select: { id: true, nombre: true } }),
+    // Pedidos de Plantas de proceso listos para despacho
+    prisma.pedido.findMany({
+      where: { estado: "EN_PREPARACION", viaje: null },
+      include: { cliente: { select: { nombre: true } }, planta: { select: { nombre: true } }, items: { include: { producto: { select: { nombre: true } } } } },
+      orderBy: { fechaRequerida: "asc" },
+    }),
   ]);
   const cuenta = (e: string) => flota.find((f) => f.estado === e)?._count ?? 0;
   const params = { tipo: str(sp.tipo), estado, tab };
@@ -84,6 +90,13 @@ export default async function TransportePage({ searchParams }: PageProps<"/trans
                   destino: s.planta.nombre,
                   carga: s.material.nombre,
                   toneladas: toNumber(s.toneladas),
+                }))}
+                pedidos={pedidos.map((p) => ({
+                  id: p.id,
+                  texto: `${p.codigo} · ${p.cliente?.nombre ?? (p.giroSolicitante ? GIROS[p.giroSolicitante].corto : "Interno")} · ${p.items.length} producto${p.items.length === 1 ? "" : "s"}`,
+                  origen: p.planta?.nombre ?? "Planta de proceso",
+                  destino: p.direccionEntrega,
+                  carga: p.items.map((i) => i.producto.nombre).join(", ").slice(0, 120),
                 }))}
               />
             </>
@@ -122,7 +135,7 @@ export default async function TransportePage({ searchParams }: PageProps<"/trans
                     </Td>
                     <Td><p>{v.carga}</p><p className="text-xs text-slate-500 tabular">{formatNum(v.toneladas, 1)} t · {formatNum(v.distanciaKm)} km</p></Td>
                     <Td><p className="font-mono text-xs">{v.camion.placa}</p><p className="text-xs text-slate-500">{v.piloto.nombre}</p></Td>
-                    <Td className="max-w-48 text-xs">{v.cliente?.nombre ?? (v.solicitud ? <span className="text-slate-500">Interno · {v.solicitud.codigo}</span> : "—")}</Td>
+                    <Td className="max-w-48 text-xs">{v.cliente?.nombre ?? (v.solicitud ? <span className="text-slate-500">Interno · {v.solicitud.codigo}</span> : v.pedido ? <span className="text-slate-500">Interno · {v.pedido.codigo}</span> : "—")}{v.cliente && v.pedido && <span className="block text-slate-500">Pedido {v.pedido.codigo}</span>}</Td>
                     <Td className="text-xs whitespace-nowrap">{formatFecha(v.fechaSalida, true)}</Td>
                     <Td className="text-right font-medium whitespace-nowrap text-slate-900">{formatQ(v.tarifa)}</Td>
                     <Td><EstadoBadge estado={v.estado} /></Td>

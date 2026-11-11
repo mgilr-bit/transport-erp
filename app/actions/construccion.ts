@@ -1,8 +1,10 @@
 "use server";
 
 import { z } from "zod";
-import { ejecutarAccion, erroresDe, validar, zFecha, zId, zMonto, zTexto, zTextoOpcional, type ActionState } from "@/lib/action";
+import { prisma } from "@/lib/db";
+import { ejecutarAccion, erroresDe, lineasDePedido, validar, zFecha, zId, zMonto, zTexto, zTextoOpcional, type ActionState } from "@/lib/action";
 import { agregarHito, alternarHito, asignarMaquina, cambiarEstadoProyecto, crearProyecto, registrarCostoObra } from "@/lib/services/operaciones";
+import { crearPedido } from "@/lib/services/pedidos";
 
 const RUTAS = ["/construccion", "/dashboard"];
 const rutasProyecto = (id: number) => [...RUTAS, `/construccion/${id}`];
@@ -113,5 +115,34 @@ export async function cambiarEstadoProyectoAction(id: number, estado: "EN_EJECUC
     bitacora: { accion: estado === "PAUSADO" ? "PAUSAR_PROYECTO" : "REANUDAR_PROYECTO", entidad: "ProyectoConstruccion", detalle: String(id) },
     revalidar: rutasProyecto(id),
     exito: estado === "PAUSADO" ? "Obra pausada." : "Obra en ejecución.",
+  });
+}
+
+// ─── Pedido de materiales a Plantas de proceso ─────────────────────────────
+
+const PedidoObraSchema = z.object({
+  proyectoId: zId,
+  direccionEntrega: zTexto(5),
+  fechaRequerida: z.preprocess((v) => (v === "" ? null : v), zFecha.nullable().optional()),
+  notas: zTextoOpcional,
+});
+
+/** Construcción se abastece de las plantas de proceso; al entregarse, el total se carga como costo de la obra. */
+export async function pedirMaterialesAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = validar(PedidoObraSchema, formData);
+  if (!parsed.success) return erroresDe(parsed.error);
+  const items = lineasDePedido(formData);
+  if (!items.length) return { ok: false, mensaje: "Agregue al menos un producto con su cantidad." };
+  const { proyectoId, ...resto } = parsed.data;
+  return ejecutarAccion({
+    giros: ["CONSTRUCCION"],
+    ejecutar: async () => {
+      const proyecto = await prisma.proyectoConstruccion.findUniqueOrThrow({ where: { id: proyectoId } });
+      if (proyecto.estado === "FINALIZADO") throw new Error("La obra ya está finalizada");
+      return crearPedido({ giroSolicitante: "CONSTRUCCION", proyectoId, items, canal: "INTERNO", ...resto });
+    },
+    bitacora: { accion: "PEDIR_MATERIALES", entidad: "Pedido", detalle: `Proyecto ${proyectoId}` },
+    revalidar: [...rutasProyecto(proyectoId), "/ventas"],
+    exito: (p) => `Pedido ${p.codigo} enviado a Plantas de proceso.`,
   });
 }

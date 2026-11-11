@@ -22,6 +22,7 @@ const ViajeSchema = z.object({
   distanciaKm: z.coerce.number().int().positive({ error: "Debe ser mayor a 0" }),
   fechaSalida: zFecha,
   solicitudId: zIdOpcional,
+  pedidoId: zIdOpcional,
 });
 
 export async function crearViaje(_prev: ActionState, formData: FormData): Promise<ActionState> {
