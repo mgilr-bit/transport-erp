@@ -4,6 +4,7 @@
  */
 import { REGLAS } from "@/lib/constants";
 import { diasEntre } from "@/lib/utils";
+import type { EstadoPedido } from "@/app/generated/prisma/client";
 
 // ─── Presupuesto ───────────────────────────────────────────────────────────
 
@@ -166,4 +167,72 @@ export function avanceEsperado(inicio: Date, fin: Date, ahora = new Date()) {
 /** Rezagada: el avance real está más de `tolerancia` puntos por debajo del esperado. */
 export function estaRezagada(avance: number, esperado: number, tolerancia = 15) {
   return avance + tolerancia < esperado;
+}
+
+// ─── Comercial: pedidos y reuniones ────────────────────────────────────────
+
+const redondear = (n: number) => Math.round(n * 100) / 100;
+
+/** Líneas y total de un pedido con el precio de catálogo; agrupa productos repetidos. */
+export function calcularPedido(items: { productoId: number; cantidad: number }[], precios: Map<number, number>) {
+  const cantidades = new Map<number, number>();
+  for (const item of items) {
+    if (!(item.cantidad > 0)) throw new Error("Las cantidades deben ser mayores a 0");
+    cantidades.set(item.productoId, (cantidades.get(item.productoId) ?? 0) + item.cantidad);
+  }
+  if (!cantidades.size) throw new Error("El pedido no tiene productos");
+  const lineas = [...cantidades].map(([productoId, cantidad]) => {
+    const precioUnitario = precios.get(productoId);
+    if (precioUnitario === undefined) throw new Error(`El producto ${productoId} no está disponible`);
+    return { productoId, cantidad: redondear(cantidad), precioUnitario, subtotal: redondear(cantidad * precioUnitario) };
+  });
+  return { lineas, total: redondear(lineas.reduce((s, l) => s + l.subtotal, 0)) };
+}
+
+export type AccionPedido = "confirmar" | "preparar" | "despachar" | "entregar" | "cancelar";
+
+const TRANSICIONES: Record<AccionPedido, { desde: EstadoPedido[]; hacia: EstadoPedido; verbo: string }> = {
+  confirmar: { desde: ["SOLICITADO"], hacia: "CONFIRMADO", verbo: "confirmar" },
+  preparar: { desde: ["CONFIRMADO"], hacia: "EN_PREPARACION", verbo: "preparar" },
+  despachar: { desde: ["EN_PREPARACION"], hacia: "DESPACHADO", verbo: "despachar" },
+  entregar: { desde: ["DESPACHADO"], hacia: "ENTREGADO", verbo: "entregar" },
+  cancelar: { desde: ["SOLICITADO", "CONFIRMADO", "EN_PREPARACION"], hacia: "CANCELADO", verbo: "cancelar" },
+};
+
+/**
+ * Estado siguiente de un pedido. La empresa avanza el pedido paso a paso y puede
+ * cancelarlo hasta la preparación; el cliente solo cancela lo que aún no se confirma.
+ */
+export function transicionPedido(estado: EstadoPedido, accion: AccionPedido, porCliente = false): EstadoPedido {
+  const t = TRANSICIONES[accion];
+  if (porCliente && accion !== "cancelar") throw new Error("El cliente solo puede cancelar sus pedidos");
+  const desde = porCliente ? (["SOLICITADO"] as EstadoPedido[]) : t.desde;
+  if (!desde.includes(estado)) {
+    throw new Error(`No se puede ${t.verbo} un pedido en estado ${estado.toLowerCase().replace("_", " ")}`);
+  }
+  return t.hacia;
+}
+
+/**
+ * Vendedor para una reunión: el del cliente si atiende el giro; si no, el que tiene
+ * menos reuniones pendientes (a igualdad, el más antiguo).
+ */
+export function elegirVendedor(candidatos: { id: number; pendientes: number }[], preferido?: number | null) {
+  if (preferido != null && candidatos.some((c) => c.id === preferido)) return preferido;
+  if (!candidatos.length) return null;
+  return [...candidatos].sort((a, b) => a.pendientes - b.pendientes || a.id - b.id)[0].id;
+}
+
+// ─── Recordatorios ─────────────────────────────────────────────────────────
+
+const diaGT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guatemala", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** Día calendario en Guatemala (AAAA-MM-DD), independiente de la zona horaria del servidor. */
+export function claveDia(fecha: Date) {
+  return diaGT.format(fecha);
+}
+
+/** Días calendario de Guatemala desde hoy hasta la fecha (0 = hoy, negativo = ya pasó). */
+export function diasHasta(fecha: Date, ahora = new Date()) {
+  return Math.round((Date.parse(claveDia(fecha)) - Date.parse(claveDia(ahora))) / 86_400_000);
 }
