@@ -54,7 +54,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <span className="text-lg font-semibold">TransPort ERP</span>
           </div>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Iniciar sesión</h2>
-          <p className="mt-1 text-sm text-slate-500">Ingrese con su cuenta corporativa.</p>
+          <p className="mt-1 text-sm text-slate-500">Personal de TransPort y clientes con acceso al portal.</p>
           {motivo === "inactivo" && (
             <p role="alert" className="mt-6 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
               Su cuenta fue desactivada. Comuníquese con el administrador general.
@@ -68,8 +68,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               <li>contabilidad@transport.gt · Conta2026!</li>
               <li>transportemp@transport.gt · Gerente2026!</li>
               <li>proceso@transport.gt · Gerente2026!</li>
+              <li>ventas.proceso@transport.gt · Vendedor2026!</li>
+              <li>sigma@clientes.transport.gt · Cliente2026! (portal)</li>
             </ul>
-            <p className="mt-2 text-slate-500">Hay una cuenta de gerente por cada giro (ver README).</p>
+            <p className="mt-2 text-slate-500">Hay gerentes y vendedores por giro, dirección y más clientes (ver README).</p>
           </details>
         </div>
       </section>
